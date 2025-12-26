@@ -114,24 +114,29 @@ def train_epoch(model, dataloader, criterion, optimizer, device):
     total_loss = 0
     
     for batch in tqdm(dataloader, desc='训练'):
-        # 准备数据
-        src = batch['src'].transpose(0, 1).to(device)  # (seq_len, batch_size)
-        tgt = batch['tgt'].transpose(0, 1).to(device)  # (seq_len, batch_size)
+        # 从 batch 中取出数据（ (batch_size, seq_len) ）
+        src = batch['src'].to(device)                    # (batch_size, src_len)
+        tgt_input = batch['tgt_input'].to(device)        # (batch_size, tgt_len)
+        tgt_output = batch['tgt_output'].to(device)      # (batch_size, tgt_len)
         src_lengths = batch['src_lengths'].to(device)
-        
+
+        # GRU 模型要求输入是 (seq_len, batch_size)，则转置
+        src = src.transpose(0, 1)          # (src_len, batch_size)
+        tgt_input = tgt_input.transpose(0, 1)  # (tgt_len, batch_size)
+        tgt_output = tgt_output.transpose(0, 1)  # (tgt_len, batch_size)
+
         optimizer.zero_grad()
-        
-        # RNN模型前向传播
-        output = model(src, src_lengths, tgt)
+
+        # 前向传播：用 tgt_input 作为 decoder 的输入（teacher forcing）
+        output = model(src, src_lengths, tgt_input)   # output shape: (tgt_len, batch_size, vocab_size)
+
+        # 计算损失：用 output 和 tgt_output
         output_dim = output.shape[-1]
-        
-        # 重塑输出和目标序列以便计算损失
-        output = output[1:].reshape(-1, output_dim)  # 跳过<sos>标记
-        tgt = tgt[1:].reshape(-1)
-        
-        loss = criterion(output, tgt)
-        
-        # 反向传播和优化
+        output = output.reshape(-1, output_dim)       # (tgt_len * batch_size, vocab_size)
+        tgt_output = tgt_output.reshape(-1)           # (tgt_len * batch_size,)
+
+        loss = criterion(output, tgt_output)
+
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5)
         optimizer.step()
@@ -147,22 +152,26 @@ def evaluate(model, dataloader, criterion, device):
     
     with torch.no_grad():
         for batch in tqdm(dataloader, desc='验证'):
-            # 准备数据
-            src = batch['src'].transpose(0, 1).to(device)  # (seq_len, batch_size)
-            tgt = batch['tgt'].transpose(0, 1).to(device)  # (seq_len, batch_size)
+            # 从 batch 中取出数据（ (batch_size, seq_len) ）
+            src = batch['src'].to(device)                    # (batch_size, src_len)
+            tgt_input = batch['tgt_input'].to(device)        # (batch_size, tgt_len)
+            tgt_output = batch['tgt_output'].to(device)      # (batch_size, tgt_len)
             src_lengths = batch['src_lengths'].to(device)
+
+            # GRU 模型要求输入是 (seq_len, batch_size)，则转置
+            src = src.transpose(0, 1)          # (src_len, batch_size)
+            tgt_input = tgt_input.transpose(0, 1)  # (tgt_len, batch_size)
+            tgt_output = tgt_output.transpose(0, 1)  # (tgt_len, batch_size)
             
             # RNN模型前向传播
-            output = model(src, src_lengths, tgt, teacher_forcing_ratio=0.0)
+            output = model(src, src_lengths, tgt_input, teacher_forcing_ratio=0.0)
+
+            # 计算损失：用 output 和 tgt_output
             output_dim = output.shape[-1]
-            
-            # 重塑输出和目标序列以便计算损失
-            output = output[1:].reshape(-1, output_dim)  # 跳过<sos>标记
-            tgt = tgt[1:].reshape(-1)
-            
-            loss = criterion(output, tgt)
-                
-            
+            output = output.reshape(-1, output_dim)       # (tgt_len * batch_size, vocab_size)
+            tgt_output = tgt_output.reshape(-1)           # (tgt_len * batch_size,)
+
+            loss = criterion(output, tgt_output)
             total_loss += loss.item()
     
     return total_loss / len(dataloader)
@@ -183,7 +192,7 @@ def translate_sentence(model, sentence, src_vocab, tgt_vocab, device, max_length
     
     # 预处理源语言句子
     src_tokens = sentence.split()
-    src_tokens = ['<sos>'] + src_tokens[:max_length - 2] + ['<eos>']
+    src_tokens = src_tokens[:max_length]
     src_indices = [src_vocab.word_to_idx(word) for word in src_tokens]
     src_tensor = torch.tensor(src_indices, dtype=torch.long).unsqueeze(1).to(device)  # (seq_len, 1)
     src_lengths = torch.tensor([len(src_indices)], dtype=torch.long).to(device)
@@ -195,14 +204,9 @@ def translate_sentence(model, sentence, src_vocab, tgt_vocab, device, max_length
     output_words = []
     for idx in output_indices:
         word = tgt_vocab.idx_to_word(idx)
+        output_words.append(word)
         if word == '<eos>':
             break
-        output_words.append(word)
-    
-    # 移除<sos>标记
-    if output_words and output_words[0] == '<sos>':
-        output_words = output_words[1:]
-    
     return ' '.join(output_words)
 
 # 生成翻译示例

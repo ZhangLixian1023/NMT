@@ -16,7 +16,7 @@ class Seq2Seq(nn.Module):
         self.decoder = decoder
         self.device = device
     
-    def forward(self, src, src_lengths, tgt, teacher_forcing_ratio=0.85):
+    def forward(self, src, src_lengths, tgt, teacher_forcing_ratio=0.5):
         """
         模型前向传播
         :param src: 源语言序列，形状：(seq_len, batch_size)

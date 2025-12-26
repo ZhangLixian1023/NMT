@@ -22,22 +22,27 @@ class TranslationDataset(Dataset):
     def __getitem__(self, idx):
         src_text, tgt_text = self.data[idx]
         
-        # 源语言序列处理：添加<sos>和<eos>标记，并转换为索引
-        src_tokens = src_text.split()
-        src_tokens = ['<sos>'] + src_tokens[:self.max_length - 2] + ['<eos>']  # 预留<sos>和<eos>位置
+        # 源语言：只截断 + padding，不加 sos/eos
+        src_tokens = src_text.split()[:self.max_length]
         src_indices = [self.src_vocab.word_to_idx(word) for word in src_tokens]
+
         
-        # 目标语言序列处理：添加<sos>和<eos>标记，并转换为索引
-        tgt_tokens = tgt_text.split()
-        tgt_tokens = ['<sos>'] + tgt_tokens[:self.max_length - 2] + ['<eos>']
+        # 目标语言序列处理：添加<sos>和<eos>标记，并转换为索引    
+        # # 目标语言：原始 tokens
+        tgt_tokens = tgt_text.split()[:self.max_length - 1] 
         tgt_indices = [self.tgt_vocab.word_to_idx(word) for word in tgt_tokens]
+
+        # 构造 decoder input 和 target
+        tgt_input = [2] + tgt_indices # 头加<sos>
+        tgt_output = tgt_indices + [3] # 尾加<eos>
         
         return {
-            'src': torch.tensor(src_indices, dtype=torch.long),
-            'tgt': torch.tensor(tgt_indices, dtype=torch.long),
-            'src_length': len(src_indices),
-            'tgt_length': len(tgt_indices)
-        }
+        'src': torch.tensor(src_indices, dtype=torch.long),
+        'tgt_input': torch.tensor(tgt_input, dtype=torch.long),
+        'tgt_output': torch.tensor(tgt_output, dtype=torch.long),
+        'src_length': len(src_indices),
+        'tgt_length': len(tgt_output) 
+    }
 
 def collate_fn(batch):
     """
