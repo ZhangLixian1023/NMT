@@ -8,7 +8,6 @@ import time
 import pickle
 from tqdm import tqdm
 from data import TranslationDataset, collate_fn
-from data import Preprocessor
 from models.rnn.encoder import Encoder as RNNEncoder
 from models.rnn.decoder import Decoder as RNNDecoder
 from models.rnn.seq2seq import Seq2Seq as RNNSeq2Seq
@@ -17,9 +16,9 @@ from models.rnn.seq2seq import Seq2Seq as RNNSeq2Seq
 parser = argparse.ArgumentParser(description='神经机器翻译模型训练')
 
 # 通用参数
-parser.add_argument('--dataset', type=str, default='train_10k.jsonl', help='数据集')
+parser.add_argument('--train_dataset', type=str, default='train_100k_pairs.jsonl', help='数据集')
 parser.add_argument('--save_dir', type=str, default='models/saved', help='模型保存目录')
-parser.add_argument('--batch_size', type=int, default=512, help='批次大小')
+parser.add_argument('--batch_size', type=int, default=256, help='批次大小')
 parser.add_argument('--num_epochs', type=int, default=8 ,help='训练轮数')
 parser.add_argument('--learning_rate', type=float, default=0.001, help='学习率')
 parser.add_argument('--max_seq_len', type=int, default=50, help='最大序列长度')
@@ -29,7 +28,7 @@ parser.add_argument('--early_stopping_patience', type=int, default=2, help='早�
 parser.add_argument('--freeze_embedding', action='store_true', help='是否冻结嵌入层参数')
 
 # RNN模型参数
-parser.add_argument('--rnn_hidden_size', type=int, default=200, help='RNN隐藏层大小')
+parser.add_argument('--rnn_hidden_size', type=int, default=512, help='RNN隐藏层大小')
 parser.add_argument('--rnn_num_layers', type=int, default=2, help='RNN层数')
 parser.add_argument('--rnn_dropout', type=float, default=0.3, help='RNN dropout概率')
 parser.add_argument('--attention_type', type=str, default='dot', choices=['dot', 'multiplicative', 'additive'], help='注意力机制类型')
@@ -43,22 +42,29 @@ os.makedirs(args.save_dir, exist_ok=True)
 # 设备选择
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f'使用设备: {device}')
-# 初始化预处理器
-preprocessor = Preprocessor()
-# 加载训练数据
-train_files = [os.path.join('dataset',args.dataset)]
-train_data = preprocessor.load_data(train_files)
-train_pairs = preprocessor.prepare_data(train_data)
 
-# 加载验证数据
-valid_data = preprocessor.load_data([os.path.join('dataset', 'valid.jsonl')])
-valid_pairs = preprocessor.prepare_data(valid_data)
+import json 
 
-src_vocab_path = os.path.join(args.save_dir, 'src_vocab.pkl')
-tgt_vocab_path = os.path.join(args.save_dir, 'tgt_vocab.pkl')
-with open(src_vocab_path, 'rb') as f:
+def load_pairs(file_path):
+    pairs = []
+    with open(file_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                record = json.loads(line)
+                pairs.append((record["src"], record["tgt"]))
+    print("end loading pairs")
+    return pairs
+
+
+# 加载训练数据和验证数据
+print('正在加载训练数据和验证数据...')
+train_pairs = load_pairs(os.path.join('dataset/', args.train_dataset))
+valid_pairs = load_pairs('dataset/valid_pairs.jsonl')
+
+with open('models/saved/src_vocab.pkl', 'rb') as f:
     src_vocab= pickle.load(f)
-with open(tgt_vocab_path, 'rb') as f:
+with open('models/saved/tgt_vocab.pkl', 'rb') as f:
     tgt_vocab= pickle.load(f)
 
 # 创建数据集和数据加载器
@@ -68,12 +74,12 @@ valid_dataset = TranslationDataset(valid_pairs, src_vocab, tgt_vocab, max_length
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=True)
 valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=collate_fn)
 
-src_embedding_path = os.path.join(args.save_dir, 'src_embedding.pkl')
-tgt_embedding_path = os.path.join(args.save_dir, 'tgt_embedding.pkl')
-with open(tgt_embedding_path, 'rb') as f:
-    tgt_embedding_matrix = pickle.load(f)
-with open(src_embedding_path, 'rb') as f:
+# 加载预训练词向量嵌入矩阵
+with open('models/saved/src_embedding.pkl', 'rb') as f:
     src_embedding_matrix = pickle.load(f)
+with open('models/saved/tgt_embedding.pkl', 'rb') as f:
+    tgt_embedding_matrix = pickle.load(f)
+
 # 初始化RNN模型
 encoder = RNNEncoder(
     input_size=src_vocab.n_words,

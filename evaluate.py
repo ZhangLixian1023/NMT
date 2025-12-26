@@ -26,7 +26,7 @@ args = parser.parse_args()
 # 从模型目录读取训练参数
 import json
 import os
-
+import pickle
 # 查找模型类型和参数文件
 model_files = os.listdir(args.model_dir)
 model_type = None
@@ -63,11 +63,16 @@ print(f'使用设备: {device}')
 
 # 加载词汇表
 print('正在加载词汇表...')
-src_vocab = Vocabulary.load(os.path.join(args.model_dir, 'src_vocab.json'))
-tgt_vocab = Vocabulary.load(os.path.join(args.model_dir, 'tgt_vocab.json'))
+with open('models/saved/src_vocab.pkl', 'rb') as f:
+    src_vocab= pickle.load(f)
+with open('models/saved/tgt_vocab.pkl', 'rb') as f:
+    tgt_vocab= pickle.load(f)
 
-print(f'源语言词汇表大小: {src_vocab.n_words}')
-print(f'目标语言词汇表大小: {tgt_vocab.n_words}')
+# 加载预训练词向量嵌入矩阵
+with open('models/saved/src_embedding.pkl', 'rb') as f:
+    src_embedding_matrix = pickle.load(f)
+with open('models/saved/tgt_embedding.pkl', 'rb') as f:
+    tgt_embedding_matrix = pickle.load(f)
 
 # 初始化模型
 print('正在初始化模型...')
@@ -78,7 +83,7 @@ if model_type == 'rnn':
         hidden_size=train_args.rnn_hidden_size,
         num_layers=train_args.rnn_num_layers,
         dropout=train_args.rnn_dropout,
-        pretrained_embedding=None,
+        pretrained_embedding=src_embedding_matrix,
         freeze_embedding=False
     ).to(device)
     
@@ -88,7 +93,7 @@ if model_type == 'rnn':
         num_layers=train_args.rnn_num_layers,
         dropout=train_args.rnn_dropout,
         attention_type=train_args.attention_type,
-        pretrained_embedding=None,
+        pretrained_embedding=tgt_embedding_matrix,
         freeze_embedding=False
     ).to(device)
     
@@ -137,9 +142,22 @@ model.eval()
 
 # 加载测试数据
 print('正在加载测试数据...')
-preprocessor = Preprocessor()
-test_data = preprocessor.load_data([os.path.join(args.data_dir, 'test.jsonl')])
-test_pairs = preprocessor.prepare_data(test_data)
+def load_pairs(file_path):
+    pairs = []
+    count=0
+    with open(file_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            count+=1
+            if count>100:
+                break
+            if line:
+                record = json.loads(line)
+                pairs.append((record["src"], record["tgt"]))
+    print("end loading pairs")
+    return pairs
+
+test_pairs = load_pairs('dataset/train_100k_pairs.jsonl')
 
 # 创建测试数据集
 test_dataset = TranslationDataset(test_pairs, src_vocab, tgt_vocab, max_length=args.max_seq_len)
@@ -182,7 +200,66 @@ def translate_sentence(model, sentence, src_vocab, tgt_vocab, device, max_length
         output_words.append(word)
     
     return output_words
+# 在您提供的代码块之后，添加以下内容
 
+from collections import Counter
+import math
+
+def calculate_bleu4(references, hypotheses):
+    """
+    根据给定的参考译文和假设译文列表，计算 BLEU-4 分数及其组成部分 p1, p2, p3, p4。
+    不使用 brevity penalty。
+    
+    Args:
+        references: List of lists. 每个元素是一个包含一个或多个参考译文（词列表）的列表。
+        hypotheses: List of lists. 每个元素是模型生成的译文（词列表）。
+    
+    Returns:
+        tuple: (bleu4_score, p1, p2, p3, p4)
+    """
+    # 初始化 n-gram 精确度的分子和分母
+    numerator = [0, 0, 0, 0]  # p1, p2, p3, p4 的分子
+    denominator = [0, 0, 0, 0]  # p1, p2, p3, p4 的分母
+
+    # 遍历每一对参考译文和假设译文
+    for i, (ref_list, hyp) in enumerate(zip(references, hypotheses)):
+        # 通常我们只取第一个参考译文进行 n-gram 匹配（简化版）
+        ref = ref_list[0]
+
+        # 对于每个 n (1到4)
+        for n in range(1, 5):
+            # 计算假设译文的 n-gram
+            hyp_ngrams = []
+            for j in range(len(hyp) - n + 1):
+                ngram = tuple(hyp[j:j+n])
+                hyp_ngrams.append(ngram)
+            
+            # 计算参考译文的 n-gram 及其最大计数
+            ref_ngrams_count = {}
+            for j in range(len(ref) - n + 1):
+                ngram = tuple(ref[j:j+n])
+                ref_ngrams_count[ngram] = ref_ngrams_count.get(ngram, 0) + 1
+            
+            # 计算匹配的 n-gram 数量
+            matched = 0
+            hyp_ngrams_count = Counter(hyp_ngrams)
+            for ngram, count in hyp_ngrams_count.items():
+                if ngram in ref_ngrams_count:
+                    matched += min(count, ref_ngrams_count[ngram])
+            
+            # 累加分子和分母
+            numerator[n-1] += matched
+            denominator[n-1] += len(hyp_ngrams)
+
+    # 计算 p1, p2, p3, p4
+    p1 = numerator[0] / denominator[0] if denominator[0] > 0 else 0
+    p2 = numerator[1] / denominator[1] if denominator[1] > 0 else 0
+    p3 = numerator[2] / denominator[2] if denominator[2] > 0 else 0
+    p4 = numerator[3] / denominator[3] if denominator[3] > 0 else 0
+
+    bleu4 = p1 * p2 * p3 * p4
+
+    return bleu4, p1, p2, p3, p4
 # 评估模型
 def evaluate_model(model, test_pairs, src_vocab, tgt_vocab, device, max_length=50):
     """
@@ -201,27 +278,33 @@ def evaluate_model(model, test_pairs, src_vocab, tgt_vocab, device, max_length=5
     for src, tgt in tqdm(test_pairs, desc='评估'):
         # 翻译源语言句子
         output_words = translate_sentence(model, src, src_vocab, tgt_vocab, device, max_length)
-        
-        # 准备参考译文（去掉<sos>和<eos>标记）
-        tgt_words = tgt.split()[1:-1]  # 去掉<sos>和<eos>标记
+
+        # 准备参考译文
+        tgt_words = tgt.split()  
         
         # 添加到参考和假设列表
         references.append([tgt_words])
         hypotheses.append(output_words)
     
+
+
     # 计算BLEU分数
     smooth = SmoothingFunction().method1
     bleu1 = corpus_bleu(references, hypotheses, weights=(1.0, 0, 0, 0), smoothing_function=smooth)
     bleu2 = corpus_bleu(references, hypotheses, weights=(0.5, 0.5, 0, 0), smoothing_function=smooth)
     bleu3 = corpus_bleu(references, hypotheses, weights=(1/3, 1/3, 1/3, 0), smoothing_function=smooth)
     bleu4 = corpus_bleu(references, hypotheses, weights=(0.25, 0.25, 0.25, 0.25), smoothing_function=smooth)
-    
+    # 调用函数计算 BLEU-4 分数
+    bleu4_score, p1, p2, p3, p4 = calculate_bleu4(references, hypotheses)
     return {
         'BLEU-1': bleu1,
         'BLEU-2': bleu2,
         'BLEU-3': bleu3,
         'BLEU-4': bleu4
     }
+
+
+
 
 # 运行评估
 print('开始评估模型...')
