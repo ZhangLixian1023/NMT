@@ -206,8 +206,7 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-tencent.bin
-wiki_giga_2024_200_MFT20_vectors_seed_2024_alpha_0.75_eta_0.05_combined.txt
+pretrainedembedding/
 
 *.pt 
 *.pkl 
