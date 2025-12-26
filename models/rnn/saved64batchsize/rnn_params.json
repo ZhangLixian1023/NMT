@@ -1,8 +1,8 @@
 {
   "train_dataset": "train_100k_pairs.jsonl",
-  "save_dir": "models/saved",
-  "batch_size": 512,
-  "num_epochs": 30,
+  "save_dir": "./models/rnn/saved64batchsize",
+  "batch_size": 64,
+  "num_epochs": 12,
   "learning_rate": 0.001,
   "max_seq_len": 50,
   "early_stopping_patience": 8,

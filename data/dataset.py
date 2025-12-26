@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 from typing import List, Tuple
+from torch.nn.utils.rnn import pad_sequence
 
 class TranslationDataset(Dataset):
     def __init__(self, data: List[Tuple[str, str]], src_vocab, tgt_vocab, max_length=20):
@@ -52,27 +53,37 @@ def collate_fn(batch):
     """
     # 按序列长度排序（用于pack_padded_sequence）
     batch.sort(key=lambda x: x['src_length'], reverse=True)
-    
+
     src_lengths = torch.tensor([item['src_length'] for item in batch])
-    tgt_lengths = torch.tensor([item['tgt_length'] for item in batch])
-    
-    # 计算批次中的最大长度
-    max_src_len = max(src_lengths)
-    max_tgt_len = max(tgt_lengths)
-    
-    # 填充源语言序列
-    src_padded = torch.zeros(len(batch), max_src_len, dtype=torch.long)
-    for i, item in enumerate(batch):
-        src_padded[i, :len(item['src'])] = item['src']
-    
-    # 填充目标语言序列
-    tgt_padded = torch.zeros(len(batch), max_tgt_len, dtype=torch.long)
-    for i, item in enumerate(batch):
-        tgt_padded[i, :len(item['tgt'])] = item['tgt']
-    
+    src_padded = pad_sequence([item['src'] for item in batch], batch_first=True, padding_value=0)
+    tgt_in_padded = pad_sequence([item['tgt_input'] for item in batch], batch_first=True, padding_value=0)
+    tgt_out_padded = pad_sequence([item['tgt_output'] for item in batch], batch_first=True, padding_value=0)
     return {
         'src': src_padded,
-        'tgt': tgt_padded,
-        'src_lengths': src_lengths,
-        'tgt_lengths': tgt_lengths
+        'tgt_input': tgt_in_padded,
+        'tgt_output': tgt_out_padded,
+        'src_lengths': src_lengths
     }
+
+    
+    # tgt_lengths = torch.tensor([item['tgt_length'] for item in batch])
+    # # 计算批次中的最大长度
+    # max_src_len = max(src_lengths)
+    # max_tgt_len = max(tgt_lengths)
+    
+    # # 填充源语言序列
+    # src_padded = torch.zeros(len(batch), max_src_len, dtype=torch.long)
+    # for i, item in enumerate(batch):
+    #     src_padded[i, :len(item['src'])] = item['src']
+    
+    # # 填充目标语言序列
+    # tgt_padded = torch.zeros(len(batch), max_tgt_len, dtype=torch.long)
+    # for i, item in enumerate(batch):
+    #     tgt_padded[i, :len(item['tgt'])] = item['tgt']
+    
+    # return {
+    #     'src': src_padded,
+    #     'tgt': tgt_padded,
+    #     'src_lengths': src_lengths,
+    #     'tgt_lengths': tgt_lengths
+    # }

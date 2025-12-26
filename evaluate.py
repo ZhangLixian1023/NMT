@@ -157,7 +157,7 @@ def load_pairs(file_path):
     print("end loading pairs")
     return pairs
 
-test_pairs = load_pairs('dataset/train_100k_pairs.jsonl')
+test_pairs = load_pairs('dataset/test_pairs.jsonl')
 
 # 创建测试数据集
 test_dataset = TranslationDataset(test_pairs, src_vocab, tgt_vocab, max_length=args.max_seq_len)

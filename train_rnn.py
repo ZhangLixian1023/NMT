@@ -18,11 +18,11 @@ parser = argparse.ArgumentParser(description='神经机器翻译模型训练')
 # 通用参数
 parser.add_argument('--train_dataset', type=str, default='train_100k_pairs.jsonl', help='数据集')
 parser.add_argument('--save_dir', type=str, default='models/saved', help='模型保存目录')
-parser.add_argument('--batch_size', type=int, default=256, help='批次大小')
-parser.add_argument('--num_epochs', type=int, default=8 ,help='训练轮数')
+parser.add_argument('--batch_size', type=int, default=512, help='批次大小')
+parser.add_argument('--num_epochs', type=int, default=30 ,help='训练轮数')
 parser.add_argument('--learning_rate', type=float, default=0.001, help='学习率')
 parser.add_argument('--max_seq_len', type=int, default=50, help='最大序列长度')
-parser.add_argument('--early_stopping_patience', type=int, default=2, help='早停耐心值')
+parser.add_argument('--early_stopping_patience', type=int, default=8, help='早停耐心值')
 
 # 预训练词向量参数
 parser.add_argument('--freeze_embedding', action='store_true', help='是否冻结嵌入层参数')
@@ -53,7 +53,7 @@ def load_pairs(file_path):
             if line:
                 record = json.loads(line)
                 pairs.append((record["src"], record["tgt"]))
-    print("end loading pairs")
+    print("end loading pairs"+file_path)
     return pairs
 
 
@@ -109,13 +109,13 @@ optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 print(f'RNN模型初始化完成，注意力机制类型: {args.attention_type}')
 print(f'嵌入层是否可训练: {not args.freeze_embedding}')
 
-# 加载模型权重
-# print(f'正在加载模型: {"rnn_model6.108.pt"}')
-# model.load_state_dict(torch.load(os.path.join(args.save_dir, "rnn_model6.108.pt"), map_location=device))
+# # 加载模型权重
+# print(f'正在加载模型: {"rnn512_model.pt"}')
+# model.load_state_dict(torch.load(os.path.join(args.save_dir, "rnn512_model.pt"), map_location=device))
 # model.eval()
 
 # 训练函数
-def train_epoch(model, dataloader, criterion, optimizer, device):
+def train_epoch(model, dataloader, criterion, optimizer, device,epoch):
     model.train()
     total_loss = 0
     
@@ -133,8 +133,10 @@ def train_epoch(model, dataloader, criterion, optimizer, device):
 
         optimizer.zero_grad()
 
+        # teacher forcing ratio 逐渐减小
+        teacher_forcing_ratio = max(0.95 - epoch * 0.05, 0.4)
         # 前向传播：用 tgt_input 作为 decoder 的输入（teacher forcing）
-        output = model(src, src_lengths, tgt_input)   # output shape: (tgt_len, batch_size, vocab_size)
+        output = model(src, src_lengths, tgt_input,teacher_forcing_ratio)   # output shape: (tgt_len, batch_size, vocab_size)
 
         # 计算损失：用 output 和 tgt_output
         output_dim = output.shape[-1]
@@ -183,7 +185,7 @@ def evaluate(model, dataloader, criterion, device):
     return total_loss / len(dataloader)
 
 # 翻译函数
-def translate_sentence(model, sentence, src_vocab, tgt_vocab, device, max_length):
+def translate_sentence(model, sentence, src_vocab, tgt_vocab, device):
     """
     翻译单个句子
     :param model: 模型对象
@@ -198,13 +200,12 @@ def translate_sentence(model, sentence, src_vocab, tgt_vocab, device, max_length
     
     # 预处理源语言句子
     src_tokens = sentence.split()
-    src_tokens = src_tokens[:max_length]
     src_indices = [src_vocab.word_to_idx(word) for word in src_tokens]
     src_tensor = torch.tensor(src_indices, dtype=torch.long).unsqueeze(1).to(device)  # (seq_len, 1)
     src_lengths = torch.tensor([len(src_indices)], dtype=torch.long).to(device)
     
     # RNN模型翻译
-    output_indices = model.predict(src_tensor, src_lengths, max_length)
+    output_indices = model.predict(src_tensor, src_lengths)
     
     # 将索引转换为单词
     output_words = []
@@ -216,11 +217,11 @@ def translate_sentence(model, sentence, src_vocab, tgt_vocab, device, max_length
     return ' '.join(output_words)
 
 # 生成翻译示例
-def generate_translation_examples(model, train_pairs, src_vocab, tgt_vocab, device, epoch,  num_examples, max_length):
+def generate_translation_examples(model, show_pairs, src_vocab, tgt_vocab, device, epoch,  num_examples):
     """
     生成翻译示例
     :param model: 模型对象
-    :param train_pairs: 训练数据对
+    :param show_pairs: 显示的句子对
     :param src_vocab: 源语言词汇表
     :param tgt_vocab: 目标语言词汇表
     :param device: 运行设备
@@ -231,11 +232,11 @@ def generate_translation_examples(model, train_pairs, src_vocab, tgt_vocab, devi
     print(f'\n=== Epoch {epoch+1} 翻译示例 ===')
     
     # 选取前num_examples个句子对
-    examples = train_pairs[:num_examples]
+    examples = show_pairs[200:200+num_examples]
     
     for i, (src, tgt) in enumerate(examples, 1):
         # 翻译源语言句子
-        translated = translate_sentence(model, src, src_vocab, tgt_vocab, device, max_length)
+        translated = translate_sentence(model, src, src_vocab, tgt_vocab, device)
         
         # 输出结果
         print(f'\n示例 {i}:')
@@ -255,22 +256,13 @@ for epoch in range(args.num_epochs):
     start_time = time.time()
     
     # 训练一个轮次
-    train_loss = train_epoch(model, train_loader, criterion, optimizer, device)
+    train_loss = train_epoch(model, train_loader, criterion, optimizer, device,epoch)
     
     # 验证模型
     valid_loss = evaluate(model, valid_loader, criterion, device,)
     
     # 生成翻译示例
-    generate_translation_examples(
-        model=model,
-        train_pairs=train_pairs,
-        src_vocab=src_vocab,
-        tgt_vocab=tgt_vocab,
-        device=device,
-        epoch=epoch,
-        num_examples=15,
-        max_length=args.max_seq_len
-    )
+    generate_translation_examples(model=model,show_pairs=train_pairs,src_vocab=src_vocab,tgt_vocab=tgt_vocab,device=device,epoch=epoch,num_examples=15)
     
     end_time = time.time()
     epoch_mins, epoch_secs = divmod(end_time - start_time, 60)

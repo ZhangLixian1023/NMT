@@ -211,3 +211,5 @@ pretrainedembedding/
 *.pt 
 *.pkl 
 *.pptx
+*.code-workspace
+

@@ -56,7 +56,7 @@ class Seq2Seq(nn.Module):
         
         return outputs
     
-    def predict(self, src, src_lengths, max_length=50):
+    def predict(self, src, src_lengths, max_length=200): 
         """
         模型预测函数（用于推理）
         :param src: 源语言序列，形状：(seq_len, 1)
@@ -64,7 +64,6 @@ class Seq2Seq(nn.Module):
         :param max_length: 最大输出长度
         :return: 预测的目标语言序列索引
         """
-        batch_size = src.size(1)
         
         # 编码器前向传播
         encoder_outputs, hidden = self.encoder(src, src_lengths)
@@ -75,7 +74,7 @@ class Seq2Seq(nn.Module):
         # 解码器初始输入为<sos>标记
         input = torch.tensor([2], device=self.device)  # <sos>的索引是2
         
-        for t in range(max_length):
+        for _ in range(max_length):
             # 解码器前向传播
             output, hidden, _ = self.decoder(input, hidden, encoder_outputs)
             
