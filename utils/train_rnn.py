@@ -16,11 +16,11 @@ from models.rnn.seq2seq import Seq2Seq as RNNSeq2Seq
 parser = argparse.ArgumentParser(description='神经机器翻译模型训练')
 
 # 通用参数
-parser.add_argument('--train_dataset', type=str, default='train_100k_pairs.jsonl', help='数据集')
+parser.add_argument('--train_dataset', type=str, default='train_10k_pairs.jsonl', help='数据集')
 parser.add_argument('--save_dir', type=str, default='models/saved', help='模型保存目录')
-parser.add_argument('--batch_size', type=int, default=512, help='批次大小')
+parser.add_argument('--batch_size', type=int, default=64, help='批次大小')
 parser.add_argument('--num_epochs', type=int, default=30 ,help='训练轮数')
-parser.add_argument('--learning_rate', type=float, default=0.001, help='学习率')
+parser.add_argument('--learning_rate', type=float, default=0.0001, help='学习率')
 parser.add_argument('--max_seq_len', type=int, default=50, help='最大序列长度')
 parser.add_argument('--early_stopping_patience', type=int, default=8, help='早停耐心值')
 
@@ -28,7 +28,7 @@ parser.add_argument('--early_stopping_patience', type=int, default=8, help='早�
 parser.add_argument('--freeze_embedding', action='store_true', help='是否冻结嵌入层参数')
 
 # RNN模型参数
-parser.add_argument('--rnn_hidden_size', type=int, default=512, help='RNN隐藏层大小')
+parser.add_argument('--rnn_hidden_size', type=int, default=256, help='RNN隐藏层大小')
 parser.add_argument('--rnn_num_layers', type=int, default=2, help='RNN层数')
 parser.add_argument('--rnn_dropout', type=float, default=0.3, help='RNN dropout概率')
 parser.add_argument('--attention_type', type=str, default='dot', choices=['dot', 'multiplicative', 'additive'], help='注意力机制类型')
@@ -62,9 +62,9 @@ print('正在加载训练数据和验证数据...')
 train_pairs = load_pairs(os.path.join('dataset/', args.train_dataset))
 valid_pairs = load_pairs('dataset/valid_pairs.jsonl')
 
-with open('models/saved/src_vocab.pkl', 'rb') as f:
+with open('models/saved/src_vocab_small.pkl', 'rb') as f:
     src_vocab= pickle.load(f)
-with open('models/saved/tgt_vocab.pkl', 'rb') as f:
+with open('models/saved/tgt_vocab_small.pkl', 'rb') as f:
     tgt_vocab= pickle.load(f)
 
 # 创建数据集和数据加载器
@@ -133,8 +133,7 @@ def train_epoch(model, dataloader, criterion, optimizer, device,epoch):
 
         optimizer.zero_grad()
 
-        # teacher forcing ratio 逐渐减小
-        teacher_forcing_ratio = max(0.95 - epoch * 0.05, 0.4)
+
         # 前向传播：用 tgt_input 作为 decoder 的输入（teacher forcing）
         output = model(src, src_lengths, tgt_input,teacher_forcing_ratio)   # output shape: (tgt_len, batch_size, vocab_size)
 
@@ -193,7 +192,6 @@ def translate_sentence(model, sentence, src_vocab, tgt_vocab, device):
     :param src_vocab: 源语言词汇表
     :param tgt_vocab: 目标语言词汇表
     :param device: 运行设备
-    :param max_length: 最大输出长度
     :return: 翻译结果句子
     """
     model.eval()

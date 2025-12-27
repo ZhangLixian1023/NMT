@@ -72,18 +72,3 @@ class Vocabulary:
                 'idx2word': {int(k): v for k, v in self.idx2word.items()},
                 'n_words': self.n_words
             }, f, ensure_ascii=False, indent=2)
-    
-    @classmethod
-    def load(cls, path):
-        with open(path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        vocab = cls(
-            data['language'], 
-            data['max_size'],
-            oov_policy=data.get('oov_policy', 'unk')
-        )
-        vocab.word2idx = data['word2idx']
-        vocab.idx2word = data['idx2word']
-        vocab.n_words = data['n_words']
-        return vocab

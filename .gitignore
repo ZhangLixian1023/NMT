@@ -207,7 +207,7 @@ marimo/_lsp/
 __marimo__/
 
 pretrainedembedding/
-
+saved_models/
 *.pt 
 *.pkl 
 *.pptx
