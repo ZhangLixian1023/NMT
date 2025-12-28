@@ -52,8 +52,8 @@ class Transformer(nn.Module):
         """
         模型前向传播
         :param src: 源语言序列，形状：(batch_size,seq_len)
-        :param tgt: 目标语言序列，形状：(batch_size,seq_len)
-        :return: 模型输出
+        :param tgt: 目标语言序列，形状：(batch_size, tgt_seq_len)
+        :return: 模型输出 (batch_size, tgt_seq_len, tgt_vocab_size)
         """
         # 创建掩码
         src_mask = self.make_src_mask(src)
@@ -96,7 +96,7 @@ class Transformer(nn.Module):
         
         # print(f"enc_out: {enc_output.shape}")
 
-        for t in range(1, max_length):
+        for _ in range(max_length):
             # tgt : (1, seq_len)
             # 创建目标语言掩码
             tgt_mask = self.make_tgt_mask(tgt) 

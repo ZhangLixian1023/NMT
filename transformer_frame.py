@@ -35,15 +35,15 @@ class transformer_frame:
         self.device= torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f'使用设备: {self.device}')
         self.load_vocab(
-            src_vocab_file = './saved_vocab_embedding/src_vocab_small.pkl' ,
-            tgt_vocab_file = './saved_vocab_embedding/tgt_vocab_small.pkl'
+            src_vocab_file = './saved_vocab_embedding/src_vocab.pkl' ,
+            tgt_vocab_file = './saved_vocab_embedding/tgt_vocab.pkl'
             )
         self.model_params = {
             "architecture":"Transformer",
             "d_model": 512,
             "n_layers": 6,  # 层数
             "n_heads":8,    # attention头数
-            "d_ff":256,    # 前馈网络隐藏层维度
+            "d_ff":1024,    # 前馈网络隐藏层维度
             "dropout": 0.3,
             "positional": "absolute",  # 位置嵌入类型 absolute 或 relative
             "norm" : "layernorm", # 归一化类型 layer 或 rms
@@ -55,12 +55,12 @@ class transformer_frame:
             # "train_dataset":"./dataset/short.jsonl",
             # "valid_dataset":"./dataset/short.jsonl",            
             # "test_dataset":"./dataset/short.jsonl",
-            "train_dataset": "./dataset/train_10k_pairs.jsonl", # 训练集
+            "train_dataset": "./dataset/train_100k_pairs.jsonl", # 训练集
             "valid_dataset": "./dataset/valid_pairs.jsonl", # 验证集
             "test_dataset":"./dataset/test_pairs.jsonl", # 测试集
             "max_seq_len": 40,
-            "batch_size": 64,
-            "learning_rate": 1e-3,
+            "batch_size": 512,
+            "learning_rate": 1e-4,
             "patience": 2,
             "teacher_forcing_ratio":1.0,
             "start_from": "scratch",
@@ -120,7 +120,7 @@ class transformer_frame:
             self.model,
             self.src_vocab,
             self.tgt_vocab,
-            examples=self.test_pairs[0:3],
+            examples=self.train_pairs[0:20],
             device=self.device
         )
         #print(f"Done: Init model with {src_embedding_file} and {tgt_embedding_file}.")
@@ -134,7 +134,7 @@ class transformer_frame:
         self.valid_pairs = load_pairs(self.exp_setting['valid_dataset'])
         self.test_pairs = load_pairs(self.exp_setting['test_dataset'])
     
-    def load_model(self,model_file="./saved_models/Transformer1227193814/model_epoch19.pt",save=True):
+    def load_model(self,model_file="./saved_models/transformer1228174409_from_scratch/Transformer1228174409_epoch_40.pt",save=True):
         self.exp_setting['from_model']=model_file
         # 初始化Transformer模型
         encoder = TransformerEncoder(
@@ -171,7 +171,7 @@ class transformer_frame:
         # 获取当前日期和时间（本地时间）
         formatted = datetime.now().strftime("%m%d%H%M%S")
         # 全部内容保存目录
-        self.save_dir=f"./saved_models/Transformer{formatted}_from_{self.exp_setting['start_from']}"
+        self.save_dir=f"./saved_models/transformer{formatted}_from_{self.exp_setting['start_from']}"
         self.save_prefix = f"Transformer{formatted}"
         os.makedirs(self.save_dir, exist_ok=True)
 
@@ -184,7 +184,7 @@ class transformer_frame:
             print(self.model, file=f)
         self.save_setting()
         # 备份代码
-        Transformer_path = "./models/Transformer/"
+        Transformer_path = "./models/transformer/"
         main_path = "./transformer_frame.py"
         dst_path = os.path.join(self.save_dir, self.save_prefix+'_code_backup')
         os.makedirs(dst_path, exist_ok=True)

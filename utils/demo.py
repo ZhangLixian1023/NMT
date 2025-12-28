@@ -1,4 +1,5 @@
 import torch
+import numpy
 class Demo:
     """Show translateion demo."""
     
@@ -24,14 +25,15 @@ class Demo:
         # print(f"src_tensor: {src_tensor.shape}")
 
         # 翻译
-        output_indices = self.model.predict(src_tensor)[0]
-
+        output_indices = self.model.predict(src_tensor)[0].to('cpu').numpy()
+        
         # 将索引转换为单词
         output_words = []
         for idx in output_indices:
             word = self.tgt_vocab.idx_to_word(idx)
             output_words.append(word)
             if word == '<eos>':
+                print("生成结束")
                 break
         return ' '.join(output_words)
 
