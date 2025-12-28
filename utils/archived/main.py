@@ -13,7 +13,7 @@ from models.rnn.decoder import Decoder as RNNDecoder
 from models.rnn.seq2seq import Seq2Seq as RNNSeq2Seq
 from utils import Demo
 params = {
-    "train_dataset": "train_10k_pairs.jsonl", # 训练数据集文件名
+    "train_dataset": "train_100k_pairs.jsonl", # 训练数据集文件名
     "max_seq_len": 50,
     "hidden_size": 256,
     "num_layers": 2,
@@ -23,7 +23,9 @@ params = {
     "learning_rate": 1e-4,
     "attention_type": "dot",  # 注意力机制类型：'bahdanau' 或 'luong'
     "freeze_embedding": False,     # 是否冻结预训练词向量
-    "patience": 5
+    "patience": 5,
+    "src_vocab_size":None,
+    "tgt_vocab_size":None
 }
 # 设备选择
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -51,6 +53,8 @@ with open('./saved_vocab_embedding/src_vocab_small.pkl', 'rb') as f:
     src_vocab= pickle.load(f)
 with open('./saved_vocab_embedding/tgt_vocab_small.pkl', 'rb') as f:
     tgt_vocab= pickle.load(f)
+params['src_vocab_size']=src_vocab.n_words
+params['tgt_vocab_size']=tgt_vocab.n_words
 
 # 创建数据集和数据加载器
 train_dataset = TranslationDataset(train_pairs, src_vocab, tgt_vocab, max_length=params['max_seq_len'])

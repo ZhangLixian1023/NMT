@@ -29,16 +29,11 @@ class Decoder(nn.Module):
                                                          padding_idx=0)
         else:
             # 随机初始化嵌入层
-            self.embedding = nn.Embedding(output_size, hidden_size, padding_idx=0)
+            self.embedding = nn.Embedding(output_size, 200, padding_idx=0)
         
         # 检查嵌入层输出维度是否与隐藏层大小匹配
         embedding_dim = self.embedding.embedding_dim
-        if embedding_dim != hidden_size:
-            # 如果不匹配，添加线性映射层
-            self.embedding_proj = nn.Linear(embedding_dim, hidden_size)
-            self.need_proj = True
-        else:
-            self.need_proj = False
+        self.embedding_proj = nn.Linear(embedding_dim, hidden_size)
         
         # 注意力机制
         self.attention = Attention(hidden_size, attention_type)
@@ -66,8 +61,7 @@ class Decoder(nn.Module):
         embedded = self.dropout(self.embedding(input_step).unsqueeze(0))
         
         # 如果嵌入维度与隐藏层大小不匹配，进行线性映射
-        if self.need_proj:
-            embedded = self.embedding_proj(embedded)
+        embedded = self.embedding_proj(embedded)
         
         # 获取顶层隐藏状态用于注意力计算：(num_layers, batch_size, hidden_size) → (batch_size, hidden_size)
         top_hidden = last_hidden[-1, :, :]

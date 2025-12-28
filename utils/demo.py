@@ -31,17 +31,25 @@ class Demo:
                 break
         return ' '.join(output_words)
 
-    def generate_translation_examples(self) -> None:
+    def generate_translation_examples(self,noref=False) -> None:
         """Generate translations for a list of example sentences."""
         print(f'\n===翻译示例 ===')
         output=[]
 
+        if noref:
+            for src in self.examples:
+                translation = self.translate_sentence(src)
+                print(f'\n源语言: {src}')
+                print(f'模型翻译: {translation}')
+                output.append({'src':src,'translation':translation})
+            print('====================')
+            return output
+        
         for (src,tgt) in self.examples:
             translation = self.translate_sentence(src)
             print(f'\n源语言: {src}')
             print(f'目标语言: {tgt}')
             print(f'模型翻译: {translation}')
-            print('---')
             output.append({'src':src,'tgt':tgt,'translation':translation})
         print('====================')
         return output

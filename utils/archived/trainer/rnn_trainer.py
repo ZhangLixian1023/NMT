@@ -96,8 +96,7 @@ class RNN_Trainer:
     
     def train(self,
               n_epochs: int,
-              settings: dict,
-              patience: int = 5) -> Dict[str, Any]:
+              settings: dict) -> Dict[str, Any]:
         """Complete training loop with early stopping."""
         import matplotlib.pyplot as plt
         import pandas as pd
@@ -110,13 +109,14 @@ class RNN_Trainer:
         now = datetime.now()
         # 格式化输出
         formatted = now.strftime("%m%d%H%M%S")
-        save_dir=f"./saved_models/rnn{formatted}"
+        save_dir=f"./saved_models/rnn{formatted}start_from{settings['start_from']}"
+
         os.makedirs(save_dir, exist_ok=True)
 
-        # 保存实验设定和模型结构
+        # 保存实验设定 和 模型结构
         settings_save_path = os.path.join(save_dir, 'settings_params.txt')
         with open(settings_save_path, 'w', encoding='utf-8') as f:
-            f.write("本次实验参数:\n")
+            f.write("本次实验参数和模型结构:\n")
             f.write(json.dumps(settings, indent=4, ensure_ascii=False))
             f.write("\n\n模型结构:\n")
             print(self.model, file=f)
@@ -124,7 +124,7 @@ class RNN_Trainer:
         # 备份代码
         rnn_path = "./models/rnn/"
         trainer_path = "./trainer/rnn_trainer.py"
-        main_path = "./main.py"
+        main_path = "./exp_frame.py"
         dst_path = os.path.join(save_dir, 'code_backup')
         # 确保目标目录存在
         os.makedirs(dst_path, exist_ok=True)
@@ -134,29 +134,37 @@ class RNN_Trainer:
         shutil.copy(trainer_path, dst_path)
         shutil.copy(main_path, dst_path)
 
+        epoch = 0
+        while epoch <= n_epochs:
+            if epoch == n_epochs:
+                more = input("已经到了设定的最后一个epoch 输入0结束 输入n追加n个epochs\n")
+                if int(more)==0:
+                    break
+                n_epochs += int(more)
 
-        for epoch in range(n_epochs):
+            epoch+=1
+
             start_time = time.time()
             
-            train_loss = self.train_epoch(teacher_forcing_ratio=0.5)
+            train_loss = self.train_epoch(teacher_forcing_ratio =settings["teacher_forcing_ratio"] )
             valid_loss = self.evaluate()
-            end_time = time.time()
-            epoch_mins, epoch_secs = divmod(end_time - start_time, 60)
-            print(f'Epoch: {epoch+1:02} | 用时: {epoch_mins}m {epoch_secs:.0f}s')
-            print(f'Train Loss: {train_loss:.3f} | Valid Loss: {valid_loss:.3f}')
 
             # 保存翻译示例（每个 epoch 都记录）
             # 文件路径用于保存翻译示例
-            examples_save_path = os.path.join(save_dir, f'translation_examples_epoch{epoch+1}.csv')
+            examples_save_path = os.path.join(save_dir, f'rnn{formatted}_translation_examples_epoch{epoch}.csv')
             examples_output = self.demo.generate_translation_examples()
             dt=pd.DataFrame(examples_output)
             dt.to_csv(examples_save_path,index=False)
 
             train_losses.append(train_loss)
             valid_losses.append(valid_loss)
+            end_time = time.time()
+            epoch_mins, epoch_secs = divmod(end_time - start_time, 60)
+            print(f'Epoch: {epoch:02} | 用时: {epoch_mins}m {epoch_secs:.0f}s')
+            print(f'Train Loss: {train_loss:.3f} | Valid Loss: {valid_loss:.3f}')
 
             # 保存 loss 列表（pickle）
-            loss_save_path = os.path.join(save_dir, "losses.pkl")
+            loss_save_path = os.path.join(save_dir, formatted+"losses.pkl")
             losses = {'train_losses': train_losses, 'valid_losses': valid_losses}
             with open(loss_save_path, 'wb') as file:
                 pickle.dump(losses, file)
@@ -171,22 +179,22 @@ class RNN_Trainer:
             plt.legend()
             plt.grid(True)
             plt.tight_layout()
-            plt.savefig(os.path.join(save_dir, 'loss_curve.png'))
+            plt.savefig(os.path.join(save_dir, formatted+'loss_curve.png'))
             plt.close()  # 释放内存
 
             # 保存最佳模型
             if valid_loss < best_valid_loss:
                 best_valid_loss = valid_loss
                 patience_counter = 0
-                model_save_path = os.path.join(save_dir, f'model_epoch{epoch+1}.pt')
+                model_save_path = os.path.join(save_dir, f'rnn_{formatted}epoch_{epoch}.pt')
                 torch.save(self.model.state_dict(), model_save_path)
                 print(f'模型已保存到 {model_save_path}')
             else:
                 patience_counter += 1
-                print(f'早停计数: {patience_counter}/{patience}')
+                print(f'早停计数: {patience_counter}/{settings["patience"]}')
             
-            if patience_counter >= patience:
-                print(f'Early stopping at epoch {epoch+1}')
+            if patience_counter >= settings["patience"]:
+                print(f'Early stopping at epoch {epoch}')
                 break
                 
         return {

@@ -25,16 +25,12 @@ class Encoder(nn.Module):
                                                          padding_idx=0)
         else:
             # 随机初始化嵌入层
-            self.embedding = nn.Embedding(input_size, hidden_size, padding_idx=0)
+            self.embedding = nn.Embedding(input_size, 300, padding_idx=0)
         
         # 检查嵌入层输出维度是否与隐藏层大小匹配
         embedding_dim = self.embedding.embedding_dim
-        if embedding_dim != hidden_size:
-            # 如果不匹配，添加线性映射层
-            self.embedding_proj = nn.Linear(embedding_dim, hidden_size)
-            self.need_proj = True
-        else:
-            self.need_proj = False
+        self.embedding_proj = nn.Linear(embedding_dim, hidden_size)
+
         
         # GRU层
         self.gru = nn.GRU(hidden_size, hidden_size, num_layers=num_layers, 
@@ -53,10 +49,7 @@ class Encoder(nn.Module):
         """
         # 嵌入层：(seq_len, batch_size) → (seq_len, batch_size, embedding_dim)
         embedded = self.dropout(self.embedding(src))
-        
-        # 如果嵌入维度与隐藏层大小不匹配，进行线性映射
-        if self.need_proj:
-            embedded = self.embedding_proj(embedded)
+        embedded = self.embedding_proj(embedded)
         
         # 使用pack_padded_sequence处理变长序列
         packed = torch.nn.utils.rnn.pack_padded_sequence(embedded, src_lengths.cpu(), enforce_sorted=True)
