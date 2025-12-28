@@ -50,7 +50,7 @@ class transformer_frame:
             "src_vocab_size":self.src_vocab.n_words,
             "tgt_vocab_size":self.tgt_vocab.n_words,
             "freeze_embedding": False     # 是否冻结预训练词向量
-            }
+            } 
         self.exp_setting={
             # "train_dataset":"./dataset/short.jsonl",
             # "valid_dataset":"./dataset/short.jsonl",            
@@ -59,8 +59,8 @@ class transformer_frame:
             "valid_dataset": "./dataset/valid_pairs.jsonl", # 验证集
             "test_dataset":"./dataset/test_pairs.jsonl", # 测试集
             "max_seq_len": 40,
-            "batch_size": 512,
-            "learning_rate": 1e-4,
+            "batch_size": 1536,
+            "learning_rate": 5e-3,
             "patience": 2,
             "teacher_forcing_ratio":1.0,
             "start_from": "scratch",
@@ -115,14 +115,15 @@ class transformer_frame:
         ).to(self.device)
 
         self.model = Transformer(encoder, decoder, self.device).to(self.device)
-        self.exp_setting['start_from'] = 'scratch'
         self.demo = Demo(
             self.model,
             self.src_vocab,
             self.tgt_vocab,
-            examples=self.train_pairs[0:20],
+            examples=self.valid_pairs[0:20],
             device=self.device
         )
+        self.exp_setting['start_from'] = 'scratch'
+
         #print(f"Done: Init model with {src_embedding_file} and {tgt_embedding_file}.")
         if save==True:
             self._init_saver()
@@ -162,6 +163,13 @@ class transformer_frame:
         self.model = Transformer(encoder, decoder, self.device).to(self.device)
         self.model.load_state_dict(torch.load(model_file, map_location=self.device))
         self.exp_setting['start_from'] = 'other'
+        self.demo = Demo(
+            self.model,
+            self.src_vocab,
+            self.tgt_vocab,
+            examples=self.valid_pairs[0:20],
+            device=self.device
+        )
         print(f"Done: Load model {model_file}.")
         if save==True:
             self._init_saver()
@@ -238,7 +246,7 @@ class transformer_frame:
         # 创建数据集和数据加载器
         train_dataset = TranslationDataset(self.train_pairs, self.src_vocab, self.tgt_vocab, max_length=self.exp_setting['max_seq_len'])
         valid_dataset = TranslationDataset(self.valid_pairs, self.src_vocab, self.tgt_vocab, max_length=self.exp_setting['max_seq_len'])
-        train_loader = DataLoader(train_dataset, batch_size=self.exp_setting['batch_size'], collate_fn=collate_fn)
+        train_loader = DataLoader(train_dataset, batch_size=self.exp_setting['batch_size'], collate_fn=collate_fn,shuffle=True)
         valid_loader = DataLoader(valid_dataset, batch_size=self.exp_setting['batch_size'], collate_fn=collate_fn)
 
         # 损失函数和优化器
@@ -351,7 +359,7 @@ class transformer_frame:
     def test(self, test_data=None, noref = False):
         # 加载测试数据
         if test_data == None:
-            test_data = self.test_pairs[50:60]
+            test_data = self.test_pairs[50:65]
         
         # 在测试集上展示demo
         demo = Demo(
