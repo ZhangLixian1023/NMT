@@ -13,14 +13,18 @@ class Demo:
         """Translate a single sentence."""
         self.model.eval()
 
+        # batch = 1
+
         # 预处理源语言句子
         src_tokens = sentence.split()
         src_indices = [self.src_vocab.word_to_idx(word) for word in src_tokens]
-        src_tensor = torch.tensor(src_indices, dtype=torch.long).unsqueeze(1).to(self.device)  # (seq_len, 1)
-        src_lengths = torch.tensor([len(src_indices)], dtype=torch.long).to(self.device)
+        src_tensor = torch.tensor(src_indices, dtype=torch.long).unsqueeze(0).to(self.device)  # ( 1 ,seq_len)
         
+        # print("class Demo维度检查")
+        # print(f"src_tensor: {src_tensor.shape}")
+
         # 翻译
-        output_indices = self.model.predict(src_tensor, src_lengths)
+        output_indices = self.model.predict(src_tensor)[0]
 
         # 将索引转换为单词
         output_words = []

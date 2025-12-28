@@ -49,8 +49,8 @@ class DecoderLayer(nn.Module):
                 relative_positions=None, relative_embeddings=None):
         """
         解码器层前向传播
-        :param x: 输入序列，形状：(seq_len, batch_size, d_model)
-        :param enc_output: 编码器输出，形状：(seq_len, batch_size, d_model)
+        :param x: 输入序列，形状：(batch_size, seq_len, d_model)
+        :param enc_output: 编码器输出，形状：(batch_size,seq_len,  d_model)
         :param src_mask: 源语言掩码矩阵，形状：(batch_size, seq_len, seq_len)
         :param tgt_mask: 目标语言掩码矩阵，形状：(batch_size, seq_len, seq_len)
         :param relative_positions: 相对位置索引，形状：(seq_len, seq_len)
@@ -121,15 +121,23 @@ class Decoder(nn.Module):
     def forward(self, tgt, enc_output, src_mask=None, tgt_mask=None):
         """
         解码器前向传播
-        :param tgt: 目标语言序列，形状：(seq_len, batch_size)
-        :param enc_output: 编码器输出，形状：(seq_len, batch_size, d_model)
+        :param tgt: 目标语言序列，形状：(batch_size, seq_len )
+        :param enc_output: 编码器输出，形状：(batch_size, seq_len, d_model)
         :param src_mask: 源语言掩码矩阵，形状：(batch_size, seq_len, seq_len)
         :param tgt_mask: 目标语言掩码矩阵，形状：(batch_size, seq_len, seq_len)
         :return: 解码器输出
         """
-        # 嵌入层：(seq_len, batch_size) → (seq_len, batch_size, d_model)
+        # 嵌入层：(batch_size, seq_len) → (batch_size, seq_len, d_model)
         x = self.dropout(self.embedding(tgt))
         
+        # # 维度检查
+        # print("\n\nDecoder 维度检查:")
+        # print(f"tgt: {tgt.shape}")
+        # print(f"enc_out: {enc_output.shape}")
+        
+        # print(f"src_mask: {src_mask.shape}")
+        # print(f"tgt_mask: {tgt_mask.shape}")
+
         # 添加位置嵌入
         x = self.positional_encoding(x)
         
@@ -137,7 +145,7 @@ class Decoder(nn.Module):
         relative_positions = None
         relative_embeddings = None
         if self.use_relative_embedding:
-            seq_len = tgt.size(0)
+            seq_len = tgt.size(1)
             relative_positions = self.positional_encoding.get_relative_positions(seq_len)
             relative_embeddings = self.positional_encoding.relative_embeddings(relative_positions)
         
@@ -148,112 +156,7 @@ class Decoder(nn.Module):
         # 最终归一化
         x = self.norm(x)
         
-        # 输出层：(seq_len, batch_size, d_model) → (seq_len, batch_size, output_size)
+        # 输出层：(batch_size, seq_len, d_model) → (batch_size, seq_len, output_size)
         output = self.fc_out(x)
         
         return output
-
-class Transformer(nn.Module):
-    def __init__(self, encoder, decoder, src_pad_idx, tgt_pad_idx, device):
-        """
-        Transformer模型
-        :param encoder: 编码器对象
-        :param decoder: 解码器对象
-        :param src_pad_idx: 源语言填充索引
-        :param tgt_pad_idx: 目标语言填充索引
-        :param device: 运行设备
-        """
-        super(Transformer, self).__init__()
-        self.encoder = encoder
-        self.decoder = decoder
-        self.src_pad_idx = src_pad_idx
-        self.tgt_pad_idx = tgt_pad_idx
-        self.device = device
-    
-    def make_src_mask(self, src):
-        """
-        创建源语言掩码
-        :param src: 源语言序列，形状：(seq_len, batch_size)
-        :return: 掩码矩阵，形状：(batch_size, seq_len, seq_len)
-        """
-        # 掩码填充位置
-        src_mask = (src != self.src_pad_idx).transpose(0, 1).unsqueeze(2)
-        return src_mask.to(self.device)
-    
-    def make_tgt_mask(self, tgt):
-        """
-        创建目标语言掩码（包含填充掩码和未来掩码）
-        :param tgt: 目标语言序列，形状：(seq_len, batch_size)
-        :return: 掩码矩阵，形状：(batch_size, seq_len, seq_len)
-        """
-        seq_len = tgt.size(0)
-        batch_size = tgt.size(1)
-        
-        # 填充掩码：(batch_size, 1, seq_len)
-        tgt_pad_mask = (tgt != self.tgt_pad_idx).transpose(0, 1).unsqueeze(2)
-        
-        # 未来掩码：(seq_len, seq_len)
-        tgt_sub_mask = torch.tril(torch.ones((seq_len, seq_len), device=self.device)).bool()
-        
-        # 组合掩码：(batch_size, seq_len, seq_len)
-        tgt_mask = tgt_pad_mask & tgt_sub_mask.unsqueeze(0)
-        return tgt_mask.to(self.device)
-    
-    def forward(self, src, tgt):
-        """
-        模型前向传播
-        :param src: 源语言序列，形状：(seq_len, batch_size)
-        :param tgt: 目标语言序列，形状：(seq_len, batch_size)
-        :return: 模型输出
-        """
-        # 创建掩码
-        src_mask = self.make_src_mask(src)
-        tgt_mask = self.make_tgt_mask(tgt)
-        
-        # 编码器前向传播
-        enc_output = self.encoder(src, src_mask)
-        
-        # 解码器前向传播
-        output = self.decoder(tgt, enc_output, src_mask, tgt_mask)
-        
-        return output
-    
-    def predict(self, src, max_length=50):
-        """
-        模型预测函数（用于推理）
-        :param src: 源语言序列，形状：(seq_len, 1)
-        :param max_length: 最大输出长度
-        :return: 预测的目标语言序列索引
-        """
-        batch_size = src.size(1)
-        
-        # 创建源语言掩码
-        src_mask = self.make_src_mask(src)
-        
-        # 编码器前向传播
-        enc_output = self.encoder(src, src_mask)
-        
-        # 初始化目标序列：只包含<sos>标记
-        tgt = torch.tensor([2], device=self.device).unsqueeze(1)  # <sos>的索引是2，形状：(1, batch_size)
-        
-        for t in range(1, max_length):
-            # 创建目标语言掩码
-            tgt_mask = self.make_tgt_mask(tgt)
-            
-            # 解码器前向传播
-            output = self.decoder(tgt, enc_output, src_mask, tgt_mask)
-            
-            # 获取最后一个时间步的输出
-            output = output[-1, :, :]
-            
-            # 获取预测的词汇索引
-            top1 = output.argmax(1).unsqueeze(0)
-            
-            # 将预测词添加到目标序列
-            tgt = torch.cat((tgt, top1), dim=0)
-            
-            # 如果预测到<eos>标记，结束预测
-            if top1.item() == 3:  # <eos>的索引是3
-                break
-        
-        return tgt

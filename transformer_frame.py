@@ -11,14 +11,13 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-
 from tqdm import tqdm
 from data import TranslationDataset, collate_fn
-from models.rnn.encoder import Encoder as RNNEncoder
-from models.rnn.decoder import Decoder as RNNDecoder
-from models.rnn.seq2seq import Seq2Seq as RNNSeq2Seq
+from models.transformer.encoder import Encoder as TransformerEncoder
+from models.transformer.decoder import Decoder as TransformerDecoder
+from models.transformer.transformer import Transformer
 from utils import Demo, calculate_bleu4, load_pairs
-class Exp_frame:
+class transformer_frame:
     """
     交互训练、评估、测试框架
     通过 python -i 交互式启动
@@ -40,26 +39,32 @@ class Exp_frame:
             tgt_vocab_file = './saved_vocab_embedding/tgt_vocab_small.pkl'
             )
         self.model_params = {
-            "architecture":"rnn-gru",
-            "hidden_size": 256,
-            "num_layers": 2,
+            "architecture":"Transformer",
+            "d_model": 512,
+            "n_layers": 6,  # 层数
+            "n_heads":8,    # attention头数
+            "d_ff":256,    # 前馈网络隐藏层维度
             "dropout": 0.3,
-            "attention_type": "dot",  # 注意力机制类型：'bahdanau' 或 'luong'
+            "positional": "absolute",  # 位置嵌入类型 absolute 或 relative
+            "norm" : "layernorm", # 归一化类型 layer 或 rms
             "src_vocab_size":self.src_vocab.n_words,
             "tgt_vocab_size":self.tgt_vocab.n_words,
             "freeze_embedding": False     # 是否冻结预训练词向量
             }
         self.exp_setting={
-            "train_dataset": "./dataset/train_100k_pairs.jsonl", # 训练集
+            # "train_dataset":"./dataset/short.jsonl",
+            # "valid_dataset":"./dataset/short.jsonl",            
+            # "test_dataset":"./dataset/short.jsonl",
+            "train_dataset": "./dataset/train_10k_pairs.jsonl", # 训练集
             "valid_dataset": "./dataset/valid_pairs.jsonl", # 验证集
             "test_dataset":"./dataset/test_pairs.jsonl", # 测试集
             "max_seq_len": 40,
-            "batch_size": 128,
+            "batch_size": 64,
             "learning_rate": 1e-3,
             "patience": 2,
             "teacher_forcing_ratio":1.0,
             "start_from": "scratch",
-            "others": "已经在ses2seq里面强制开启100%teaching"
+            "others": ""
             }
         self.load_data()
         self.trained_epochs=0
@@ -86,36 +91,39 @@ class Exp_frame:
         with open(tgt_embedding_file, 'rb') as f:
             tgt_embedding_matrix = pickle.load(f)
 
-        # 初始化RNN模型
-        encoder = RNNEncoder(
+        # 初始化Transformer模型
+        encoder = TransformerEncoder(
             input_size=self.src_vocab.n_words,
-            hidden_size=self.model_params['hidden_size'],
-            num_layers=self.model_params['num_layers'],
+            d_model=self.model_params['d_model'],
+            n_layers=self.model_params['n_layers'],
+            n_heads=self.model_params['n_heads'],
+            d_ff=self.model_params['d_ff'],
             dropout=self.model_params['dropout'],
-            pretrained_embedding=src_embedding_matrix,
-            freeze_embedding=self.model_params['freeze_embedding']
+            norm_type=self.model_params['norm'],
+            embedding_type=self.model_params['positional']
         ).to(self.device)
 
-        decoder = RNNDecoder(
+        decoder = TransformerDecoder(
             output_size=self.tgt_vocab.n_words,
-            hidden_size=self.model_params['hidden_size'],
-            num_layers=self.model_params['num_layers'],
+            d_model=self.model_params['d_model'],
+            n_layers=self.model_params['n_layers'],
+            n_heads=self.model_params['n_heads'],
+            d_ff=self.model_params['d_ff'],
             dropout=self.model_params['dropout'],
-            attention_type=self.model_params['attention_type'],
-            pretrained_embedding=tgt_embedding_matrix,
-            freeze_embedding=self.model_params['freeze_embedding']
+            norm_type=self.model_params['norm'],
+            embedding_type=self.model_params['positional']
         ).to(self.device)
 
-        self.model = RNNSeq2Seq(encoder, decoder, self.device).to(self.device)
+        self.model = Transformer(encoder, decoder, self.device).to(self.device)
         self.exp_setting['start_from'] = 'scratch'
         self.demo = Demo(
             self.model,
             self.src_vocab,
             self.tgt_vocab,
-            examples=self.test_pairs[0:8],
+            examples=self.test_pairs[0:3],
             device=self.device
         )
-        print(f"Done: Init model with {src_embedding_file} and {tgt_embedding_file}.")
+        #print(f"Done: Init model with {src_embedding_file} and {tgt_embedding_file}.")
         if save==True:
             self._init_saver()
         self.save=save
@@ -126,25 +134,32 @@ class Exp_frame:
         self.valid_pairs = load_pairs(self.exp_setting['valid_dataset'])
         self.test_pairs = load_pairs(self.exp_setting['test_dataset'])
     
-    def load_model(self,model_file="./saved_models/rnn1227193814/model_epoch19.pt",save=True):
+    def load_model(self,model_file="./saved_models/Transformer1227193814/model_epoch19.pt",save=True):
         self.exp_setting['from_model']=model_file
-        # 初始化RNN模型
-        encoder = RNNEncoder(
+        # 初始化Transformer模型
+        encoder = TransformerEncoder(
             input_size=self.src_vocab.n_words,
-            hidden_size=self.model_params['hidden_size'],
-            num_layers=self.model_params['num_layers'],
-            dropout=self.model_params['dropout']
-        ).to(self.device)
-
-        decoder = RNNDecoder(
-            output_size=self.tgt_vocab.n_words,
-            hidden_size=self.model_params['hidden_size'],
-            num_layers=self.model_params['num_layers'],
+            d_model=self.model_params['d_model'],
+            n_layers=self.model_params['n_layers'],
+            n_heads=self.model_params['n_heads'],
+            d_ff=self.model_params['d_ff'],
             dropout=self.model_params['dropout'],
-            attention_type=self.model_params['attention_type']
+            norm_type=self.model_params['norm'],
+            embedding_type=self.model_params['positional']
         ).to(self.device)
 
-        self.model = RNNSeq2Seq(encoder, decoder, self.device).to(self.device)
+        decoder = TransformerDecoder(
+            output_size=self.tgt_vocab.n_words,
+            d_model=self.model_params['d_model'],
+            n_layers=self.model_params['n_layers'],
+            n_heads=self.model_params['n_heads'],
+            d_ff=self.model_params['d_ff'],
+            dropout=self.model_params['dropout'],
+            norm_type=self.model_params['norm'],
+            embedding_type=self.model_params['positional']
+        ).to(self.device)
+
+        self.model = Transformer(encoder, decoder, self.device).to(self.device)
         self.model.load_state_dict(torch.load(model_file, map_location=self.device))
         self.exp_setting['start_from'] = 'other'
         print(f"Done: Load model {model_file}.")
@@ -156,8 +171,8 @@ class Exp_frame:
         # 获取当前日期和时间（本地时间）
         formatted = datetime.now().strftime("%m%d%H%M%S")
         # 全部内容保存目录
-        self.save_dir=f"./saved_models/rnn{formatted}_from_{self.exp_setting['start_from']}"
-        self.save_prefix = f"rnn{formatted}"
+        self.save_dir=f"./saved_models/Transformer{formatted}_from_{self.exp_setting['start_from']}"
+        self.save_prefix = f"Transformer{formatted}"
         os.makedirs(self.save_dir, exist_ok=True)
 
         # 保存实验设定 和 模型结构
@@ -169,11 +184,11 @@ class Exp_frame:
             print(self.model, file=f)
         self.save_setting()
         # 备份代码
-        rnn_path = "./models/rnn/"
-        main_path = "./exp_frame.py"
+        Transformer_path = "./models/Transformer/"
+        main_path = "./transformer_frame.py"
         dst_path = os.path.join(self.save_dir, self.save_prefix+'_code_backup')
         os.makedirs(dst_path, exist_ok=True)
-        shutil.copytree(rnn_path, os.path.join(dst_path, 'rnn'), dirs_exist_ok=True)
+        shutil.copytree(Transformer_path, os.path.join(dst_path, 'Transformer'), dirs_exist_ok=True)
         shutil.copy(main_path, dst_path)
         print("Done: init saver.")
 
@@ -223,11 +238,12 @@ class Exp_frame:
         # 创建数据集和数据加载器
         train_dataset = TranslationDataset(self.train_pairs, self.src_vocab, self.tgt_vocab, max_length=self.exp_setting['max_seq_len'])
         valid_dataset = TranslationDataset(self.valid_pairs, self.src_vocab, self.tgt_vocab, max_length=self.exp_setting['max_seq_len'])
-        train_loader = DataLoader(train_dataset, batch_size=self.exp_setting['batch_size'], collate_fn=collate_fn, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_size=self.exp_setting['batch_size'], collate_fn=collate_fn)
         valid_loader = DataLoader(valid_dataset, batch_size=self.exp_setting['batch_size'], collate_fn=collate_fn)
+
         # 损失函数和优化器
-        criterion = nn.NLLLoss(ignore_index=0)  # 忽略填充标记
-        optimizer = optim.Adam(self.model.parameters(), lr=self.exp_setting['learning_rate'])
+        criterion = nn.CrossEntropyLoss(ignore_index=0)  # 忽略填充标记
+        optimizer = optim.Adam(self.model.parameters(), lr=self.exp_setting['learning_rate'], betas=(0.9, 0.98), eps=1e-9)
 
         patience_counter = 0
         epoch = 0
@@ -276,20 +292,14 @@ class Exp_frame:
             tgt_output = batch['tgt_output'].to(self.device)      # (batch_size, tgt_len)
             src_lengths = batch['src_lengths'].to(self.device)
 
-            # GRU 模型要求输入是 (seq_len, batch_size)，则转置
-            src = src.transpose(0, 1)          # (src_len, batch_size)
-            tgt_input = tgt_input.transpose(0, 1)  # (tgt_len, batch_size)
-            tgt_output = tgt_output.transpose(0, 1)  # (tgt_len, batch_size)
-            
+            # # 维度检查
+            # print("\n train epoch")
+            # print(f"src shape = {src.shape}")
+            # print(f"tgt_input shape = {tgt_input.shape}")
             optimizer.zero_grad()
 
             # 前向传播：用 tgt_input 作为 decoder 的输入（teacher forcing）
-            output = self.model(
-                src, 
-                src_lengths, 
-                tgt_input,
-                self.exp_setting['teacher_forcing_ratio']
-                )   # output shape: (tgt_len, batch_size, vocab_size)
+            output = self.model(src, tgt_input)   # output shape: (batch_size, tgt_len,  vocab_size)
 
             # 计算损失：用 output 和 tgt_output
             output_dim = output.shape[-1]
@@ -314,7 +324,7 @@ class Exp_frame:
             valid_dataset = TranslationDataset(self.valid_pairs, self.src_vocab, self.tgt_vocab, max_length=self.exp_setting['max_seq_len'])
             valid_loader = DataLoader(valid_dataset, batch_size=self.exp_setting['batch_size'], collate_fn=collate_fn)
             # 损失函数和优化器
-            criterion = nn.NLLLoss(ignore_index=0)  # 忽略填充标记
+            criterion = nn.CrossEntropyLoss(ignore_index=0)  # 忽略填充标记
 
         self.model.eval()
         epoch_loss = 0
@@ -327,12 +337,8 @@ class Exp_frame:
                 tgt_output = batch['tgt_output'].to(self.device)      # (batch_size, tgt_len)
                 src_lengths = batch['src_lengths'].to(self.device)
 
-                # GRU 模型要求输入是 (seq_len, batch_size)，则转置
-                src = src.transpose(0, 1)          # (src_len, batch_size)
-                tgt_input = tgt_input.transpose(0, 1)  # (tgt_len, batch_size)
-                tgt_output = tgt_output.transpose(0, 1)  # (tgt_len, batch_size)
-                # RNN模型前向传播
-                output = self.model(src, src_lengths, tgt_input, teacher_forcing_ratio=0.0)
+                # Transformer模型前向传播
+                output = self.model(src,  tgt_input)  # (batch_size, tgt_len, vocab_size )
                 # 计算损失：用 output 和 tgt_output
                 output_dim = output.shape[-1]
                 output = output.reshape(-1, output_dim)       # (tgt_len * batch_size, vocab_size)

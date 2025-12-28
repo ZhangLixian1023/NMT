@@ -52,7 +52,8 @@ class Seq2Seq(nn.Module):
             top1 = output.argmax(1)
             
             # 下一个时间步的输入：如果使用教师强制则使用真实目标词，否则使用预测词
-            input = tgt[t] if teacher_force else top1
+            #input = tgt[t] if teacher_force else top1
+            input = tgt[t]
         
         return outputs
     

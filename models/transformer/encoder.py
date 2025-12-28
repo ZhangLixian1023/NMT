@@ -42,7 +42,7 @@ class EncoderLayer(nn.Module):
     def forward(self, x, mask=None, relative_positions=None, relative_embeddings=None):
         """
         编码器层前向传播
-        :param x: 输入序列，形状：(seq_len, batch_size, d_model)
+        :param x: 输入序列，形状：(batch_size, seq_len, d_model)
         :param mask: 掩码矩阵，形状：(batch_size, seq_len, seq_len)
         :param relative_positions: 相对位置索引，形状：(seq_len, seq_len)
         :param relative_embeddings: 相对位置嵌入，形状：(seq_len, seq_len, d_k)
@@ -104,11 +104,11 @@ class Encoder(nn.Module):
     def forward(self, src, mask=None):
         """
         编码器前向传播
-        :param src: 源语言序列，形状：(seq_len, batch_size)
-        :param mask: 掩码矩阵，形状：(batch_size, seq_len, seq_len)
+        :param src: 源语言序列，形状：(batch_size, seq_len)
+        :param mask: 掩码矩阵，形状：(batch_size, 1, 1, seq_len)
         :return: 编码器输出
         """
-        # 嵌入层：(seq_len, batch_size) → (seq_len, batch_size, d_model)
+        # 嵌入层：(batch_size,seq_len) → (batch_size,seq_len, d_model)
         x = self.dropout(self.embedding(src))
         
         # 添加位置嵌入
@@ -122,6 +122,9 @@ class Encoder(nn.Module):
             relative_positions = self.positional_encoding.get_relative_positions(seq_len)
             relative_embeddings = self.positional_encoding.relative_embeddings(relative_positions)
         
+        # print("\n维度检查 Transformer Encoder forward:")
+        # print(f"src shape = {src.shape}")
+        # print(f"mask shape = {mask.shape}")
         # 经过所有编码器层
         for layer in self.layers:
             x = layer(x, mask, relative_positions, relative_embeddings)

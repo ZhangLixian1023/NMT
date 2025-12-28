@@ -3,7 +3,7 @@ import torch.nn as nn
 import math
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=5000, embedding_type='absolute'):
+    def __init__(self, d_model, max_len=100, embedding_type='absolute'):
         """
         位置嵌入模块
         :param d_model: 模型维度
@@ -21,7 +21,6 @@ class PositionalEncoding(nn.Module):
             div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
             pe[:, 0::2] = torch.sin(position * div_term)
             pe[:, 1::2] = torch.cos(position * div_term)
-            pe = pe.unsqueeze(0).transpose(0, 1)
             self.register_buffer('pe', pe)
         elif embedding_type == 'relative':
             # 相对位置嵌入：使用可学习的位置嵌入
@@ -31,12 +30,12 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         """
         位置嵌入前向传播
-        :param x: 输入序列，形状：(seq_len, batch_size, d_model)
+        :param x: 输入序列，形状：(batch_size,seq_len,  d_model)
         :return: 带有位置嵌入的序列
         """
         if self.embedding_type == 'absolute':
             # 绝对位置嵌入：直接相加
-            x = x + self.pe[:x.size(0), :]
+            x = x + self.pe[:x.size(1), :] # pe 自动广播为 (batch_size , max_len,  d_model)
             return x
         else:  # relative
             # 相对位置嵌入：需要在注意力机制中使用，这里暂时返回原输入

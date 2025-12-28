@@ -54,15 +54,21 @@ class MultiHeadAttention(nn.Module):
             # 相对位置分数：(batch_size, n_heads, seq_len_q, seq_len_k)
             relative_attn_scores = torch.sum(Q_reshaped * relative_embeddings, dim=-1) / math.sqrt(self.d_k)
             attn_scores = attn_scores + relative_attn_scores
-        
+        # print("点积注意力:")
+        # print("维度:")
+        # print(f"mask:{mask.shape}")
+        # print(f"Q:{Q.shape}")
+        # print(f"K:{K.shape}")
+        # print(f"atten_scores:{attn_scores.shape}")
         # 应用掩码
         if mask is not None:
-            attn_scores = attn_scores.masked_fill(mask == 0, -1e9)
+            attn_scores = attn_scores.masked_fill(mask == 0, float('-inf'))
         
         # 计算注意力权重：(batch_size, n_heads, seq_len_q, seq_len_k)
         attn_weights = F.softmax(attn_scores, dim=-1)
         attn_weights = self.dropout(attn_weights)
         
+        assert K.size(2) == V.size(2) # seq_len_k == seq_len_v
         # 计算注意力输出：(batch_size, n_heads, seq_len_q, d_k)
         output = torch.matmul(attn_weights, V)
         
@@ -71,25 +77,28 @@ class MultiHeadAttention(nn.Module):
     def forward(self, Q, K, V, mask=None, relative_positions=None, relative_embeddings=None):
         """
         多头注意力前向传播
-        :param Q: 查询矩阵，形状：(seq_len_q, batch_size, d_model)
-        :param K: 键矩阵，形状：(seq_len_k, batch_size, d_model)
-        :param V: 值矩阵，形状：(seq_len_v, batch_size, d_model)
-        :param mask: 掩码矩阵，形状：(batch_size, seq_len_q, seq_len_k)
+        :param Q: 查询矩阵，形状：(batch_size, seq_len_q,  d_model)
+        :param K: 键矩阵，形状：(batch_size, seq_len_k,  d_model)
+        :param V: 值矩阵，形状：(batch_size, seq_len_v,  d_model)
+        :param mask: 掩码矩阵，形状：(batch_size, 1, seq_len_q, seq_len_k)
         :param relative_positions: 相对位置索引，形状：(seq_len_q, seq_len_k)
         :param relative_embeddings: 相对位置嵌入，形状：(seq_len_q, seq_len_k, d_k)
         :return: 注意力输出和注意力权重
         """
-        batch_size = Q.size(1)
-        
+        batch_size = Q.size(0)
+
+
         # 线性变换并分拆成多头
-        # Q: (seq_len_q, batch_size, d_model) → (batch_size, seq_len_q, d_model) → (batch_size, seq_len_q, n_heads, d_k) → (batch_size, n_heads, seq_len_q, d_k)
-        Q = self.W_q(Q.transpose(0, 1)).view(batch_size, -1, self.n_heads, self.d_k).transpose(1, 2)
-        K = self.W_k(K.transpose(0, 1)).view(batch_size, -1, self.n_heads, self.d_k).transpose(1, 2)
-        V = self.W_v(V.transpose(0, 1)).view(batch_size, -1, self.n_heads, self.d_k).transpose(1, 2)
-        
-        # 调整掩码形状：(batch_size, seq_len_q, seq_len_k) → (batch_size, 1, seq_len_q, seq_len_k)
-        if mask is not None:
-            mask = mask.unsqueeze(1)
+        # Q: (batch_size, seq_len_q, d_model) → (batch_size, seq_len_q, n_heads, d_k) → (batch_size, n_heads, seq_len_q, d_k)
+        Q = self.W_q(Q).view(batch_size, -1, self.n_heads, self.d_k).transpose(1, 2)
+        K = self.W_k(K).view(batch_size, -1, self.n_heads, self.d_k).transpose(1, 2)
+        V = self.W_v(V).view(batch_size, -1, self.n_heads, self.d_k).transpose(1, 2)
+                
+        # print("维度检查:")
+        # print(f"Q:{Q.shape}")
+        # print(f"K:{K.shape}")
+        # input()
+        # mask: (batch_size, 1, seq_len_q, seq_len_k)
         
         # 计算缩放点积注意力
         attn_output, attn_weights = self.scaled_dot_product_attention(Q, K, V, mask, relative_positions, relative_embeddings)
@@ -97,7 +106,7 @@ class MultiHeadAttention(nn.Module):
         # 合并多头注意力输出：(batch_size, n_heads, seq_len_q, d_k) → (batch_size, seq_len_q, n_heads, d_k) → (batch_size, seq_len_q, d_model)
         attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, -1, self.d_model)
         
-        # 线性变换：(batch_size, seq_len_q, d_model) → (seq_len_q, batch_size, d_model)
-        output = self.W_o(attn_output).transpose(0, 1)
+        # 线性变换：(batch_size, seq_len_q, d_model) → (batch_size,seq_len_q,  d_model)
+        output = self.W_o(attn_output)
         
         return output, attn_weights
