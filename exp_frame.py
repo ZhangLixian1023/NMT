@@ -11,13 +11,13 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-
+import sacrebleu
 from tqdm import tqdm
 from data import TranslationDataset, collate_fn
 from models.rnn.encoder import Encoder as RNNEncoder
 from models.rnn.decoder import Decoder as RNNDecoder
 from models.rnn.seq2seq import Seq2Seq as RNNSeq2Seq
-from utils import Demo, calculate_bleu4, load_pairs
+from utils import Demo, load_pairs
 class Exp_frame:
     """
     交互训练、评估、测试框架
@@ -36,12 +36,12 @@ class Exp_frame:
         self.device= torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f'使用设备: {self.device}')
         self.load_vocab(
-            src_vocab_file = './saved_vocab_embedding/src_vocab_small.pkl' ,
-            tgt_vocab_file = './saved_vocab_embedding/tgt_vocab_small.pkl'
+            src_vocab_file = './saved_vocab_embedding/src_vocab.pkl' ,
+            tgt_vocab_file = './saved_vocab_embedding/tgt_vocab.pkl'
             )
         self.model_params = {
             "architecture":"rnn-gru",
-            "hidden_size": 256,
+            "hidden_size": 512,
             "num_layers": 2,
             "dropout": 0.3,
             "attention_type": "dot",  # 注意力机制类型：'bahdanau' 或 'luong'
@@ -54,17 +54,18 @@ class Exp_frame:
             "valid_dataset": "./dataset/valid_pairs.jsonl", # 验证集
             "test_dataset":"./dataset/test_pairs.jsonl", # 测试集
             "max_seq_len": 40,
-            "batch_size": 128,
-            "learning_rate": 1e-3,
+            "batch_size": 64,
+            "learning_rate": 1e-4,
             "patience": 2,
             "teacher_forcing_ratio":1.0,
             "start_from": "scratch",
-            "others": "已经在ses2seq里面强制开启100%teaching"
+            "others": ""
             }
         self.load_data()
         self.trained_epochs=0
         self.train_losses=[]
         self.valid_losses=[]
+        self.bleu_scores=[]
         self.best_valid_loss=float('inf')
         self.save=True
 
@@ -200,6 +201,12 @@ class Exp_frame:
         with open(loss_save_path, 'wb') as file:
             pickle.dump(losses, file)
 
+        # 保存 bleu_scores 列表 txt
+        bleu_save_path = os.path.join(self.save_dir, self.save_prefix+'_bleu_scores.txt')
+        with open(bleu_save_path, 'w', encoding='utf-8') as f:
+            for score in self.bleu_scores:
+                f.write(f"{score}\n")
+
         import matplotlib.pyplot as plt
         # 绘制并保存 loss 曲线图（每次 epoch 后更新图）
         plt.figure(figsize=(10, 6))
@@ -242,15 +249,16 @@ class Exp_frame:
             self.trained_epochs+=1
             start_time = time.time()
             train_loss = self.train_epoch(train_loader,criterion,optimizer)
-            valid_loss = self.evaluate(valid_loader,criterion)
+            valid_loss, bleu_score = self.evaluate(valid_loader,criterion)
             self.train_losses.append(train_loss)
             self.valid_losses.append(valid_loss)
+            self.bleu_scores.append(bleu_score)
             self._save_epoch()
             # 打印 Loss 和 用时
             end_time = time.time()
             epoch_mins, epoch_secs = divmod(end_time - start_time, 60)
             print(f'Epoch: {self.trained_epochs:02} | 用时: {epoch_mins}m {epoch_secs:.0f}s')
-            print(f'Train Loss: {train_loss:.3f} | Valid Loss: {valid_loss:.3f}')
+            print(f'Train Loss: {train_loss:.3f} | Valid Loss: {valid_loss:.3f} | BLEU: {bleu_score*100:.2f}')
 
             # 早停
             if valid_loss < self.best_valid_loss:
@@ -318,7 +326,9 @@ class Exp_frame:
 
         self.model.eval()
         epoch_loss = 0
-        
+        all_preds = []   # 存储所有预测句子（字符串）
+        all_refs = []    # 存储所有参考句子（字符串）
+
         with torch.no_grad():
             for batch in tqdm(valid_loader, desc='验证'):
                 # 从 batch 中取出数据（ (batch_size, seq_len) ）
@@ -332,20 +342,43 @@ class Exp_frame:
                 tgt_input = tgt_input.transpose(0, 1)  # (tgt_len, batch_size)
                 tgt_output = tgt_output.transpose(0, 1)  # (tgt_len, batch_size)
                 # RNN模型前向传播
-                output = self.model(src, src_lengths, tgt_input, teacher_forcing_ratio=0.0)
-                # 计算损失：用 output 和 tgt_output
-                output_dim = output.shape[-1]
-                output = output.reshape(-1, output_dim)       # (tgt_len * batch_size, vocab_size)
-                tgt_output = tgt_output.reshape(-1)           # (tgt_len * batch_size,)
+                output = self.model(src, src_lengths, tgt_input, teacher_forcing_ratio=0.0) # output shape: (tgt_len, batch_size, vocab_size)
 
-                loss = criterion(output, tgt_output)
+                # 计算 loss
+                output_dim = output.shape[-1]
+                output_flat = output.reshape(-1, output_dim)# (tgt_len * batch_size, vocab_size)
+                tgt_flat = tgt_output.reshape(-1)# (tgt_len * batch_size,)
+                loss = criterion(output_flat, tgt_flat)
+                
                 epoch_loss += loss.item()
-        return epoch_loss / len(valid_loader)
+
+                # 准备计算 BLEU 分数
+                pred_tokens = output.argmax(dim=-1).transpose(0, 1)  # (B, tgt_len)
+                tgt_output_batch = tgt_output.transpose(0, 1)        # (B, tgt_len)
+                # 遍历 batch 中每个样本
+                for i in range(pred_tokens.size(0)):
+                    # 移除填充（假设 0 是 <pad>）
+                    pred_seq = pred_tokens[i].cpu().tolist()
+                    ref_seq = tgt_output_batch[i].cpu().tolist()
+                    # 移除 <pad>（0）
+                    pred_seq = [x for x in pred_seq if x != 0]
+                    ref_seq = [x for x in ref_seq if x != 0]
+
+                    # 转回 token 字符串（使用 tgt_vocab 的反向映射）
+                    pred_text = ' '.join([self.tgt_vocab.idx_to_word(idx) for idx in pred_seq])
+                    ref_text = ' '.join([self.tgt_vocab.idx_to_word(idx) for idx in ref_seq])
+
+                    all_preds.append(pred_text)
+                    all_refs.append(ref_text)
+
+        avg_loss = epoch_loss / len(valid_loader)
+        bleu = sacrebleu.corpus_bleu(all_preds, all_refs)
+        return avg_loss, bleu.score
 
     def test(self, test_data=None, noref = False):
         # 加载测试数据
         if test_data == None:
-            test_data = self.test_pairs[50:60]
+            test_data = self.test_pairs[0:1]
         
         # 在测试集上展示demo
         demo = Demo(
@@ -364,9 +397,5 @@ class Exp_frame:
             for (src,tgt,translation) in result:
                 refs.append(tgt)
                 hyps.append(translation)
-            bleu4, p1, p2, p3, p4 = calculate_bleu4(refs,hyps)
-            print(f"p1: {p1}\n")
-            print(f"p2: {p2}\n")
-            print(f"p3: {p3}\n")
-            print(f"p4: {p4}\n")
-            print(f"bleu4: {bleu4}\n")
+            bleu = sacrebleu.corpus_bleu(refs,hyps)
+            print(f"BLEU: {bleu.score}\n")

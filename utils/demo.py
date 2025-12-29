@@ -25,7 +25,7 @@ class Demo:
         # print(f"src_tensor: {src_tensor.shape}")
 
         # 翻译
-        output_indices = self.model.predict(src_tensor)[0].to('cpu').numpy()
+        output_indices = self.model.predict(src_tensor)
         
         # 将索引转换为单词
         output_words = []

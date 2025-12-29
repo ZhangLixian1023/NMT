@@ -52,22 +52,25 @@ class Seq2Seq(nn.Module):
             top1 = output.argmax(1)
             
             # 下一个时间步的输入：如果使用教师强制则使用真实目标词，否则使用预测词
-            #input = tgt[t] if teacher_force else top1
-            input = tgt[t]
+            input = tgt[t] if teacher_force else top1
+
+            # 这是强制 100% 开启教师强制
+            # input = tgt[t]
         
         return outputs
     
-    def predict(self, src, src_lengths, max_length=200): 
+    def predict(self, src,  max_length=200): 
         """
         模型预测函数（用于推理）
-        :param src: 源语言序列，形状：(seq_len, 1)
-        :param src_lengths: 源语言序列长度，形状：(1)
+        :param src: 源语言序列，形状：(1,seq_len)
         :param max_length: 最大输出长度
         :return: 预测的目标语言序列索引
         """
         
+        # 编码器需要 (seq_len,1)
+        src = src.transpose(0,1)  # (seq_len, 1)
         # 编码器前向传播
-        encoder_outputs, hidden = self.encoder(src, src_lengths)
+        encoder_outputs, hidden = self.encoder(src, src_lengths=torch.tensor([src.size(0)]).to(self.device))
         
         # 存储预测结果
         outputs = []

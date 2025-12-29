@@ -71,7 +71,7 @@ class Transformer(nn.Module):
         
         return output
     
-    def predict(self, src, max_length=50):
+    def predict(self, src, src_lengths=None, max_length=50):
         """
         模型预测函数（用于推理）
         :param src: 源语言序列，形状：(batch_size = 1,seq_len, 1) 
@@ -95,7 +95,7 @@ class Transformer(nn.Module):
         # print(f"tgt: {tgt.shape}")
         
         # print(f"enc_out: {enc_output.shape}")
-
+        outputs = []
         for _ in range(max_length):
             # tgt : (1, seq_len)
             # 创建目标语言掩码
@@ -109,7 +109,7 @@ class Transformer(nn.Module):
             
             # 获取预测的词汇索引
             top1 = output.argmax(-1).unsqueeze(0)  # (1 token)--> (1 batch, 1 token) 最大概率的词
-            
+            outputs.append(output.argmax(-1).item())
             # 将预测词添加到目标序列
             tgt = torch.cat((tgt, top1), dim=1) # (1, seq_len + 1 )
             
@@ -117,4 +117,4 @@ class Transformer(nn.Module):
             if top1.item() == 3:  # <eos>的索引是3
                 break
         
-        return tgt
+        return outputs
