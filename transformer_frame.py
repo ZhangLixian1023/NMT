@@ -1,7 +1,6 @@
 import pickle
 import torch
 import torch.nn as nn
-import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from data import TranslationDataset, collate_fn
@@ -28,21 +27,21 @@ class Transformer_frame(Exp_frame):
         super().__init__()
         self.model_params = {
             "architecture":"Transformer",
-            "d_model": 512,
+            "d_model": 256,  # 嵌入维度
             "n_layers": 6,  # 层数
             "n_heads":8,    # attention头数
-            "d_ff":1024,    # 前馈网络隐藏层维度
+            "d_ff":512,    # 前馈网络隐藏层维度
             "dropout": 0.3,
-            "positional": "absolute",  # 位置嵌入类型 absolute 或 relative
-            "norm" : "layernorm", # 归一化类型 layer 或 rms
+            "relative_position": True,  # 位置嵌入类型 absolute 或 relative
+            "norm" : "rmsnorm", # 归一化类型 layer 或 rms
             "src_vocab_size":self.src_vocab.n_words,
             "tgt_vocab_size":self.tgt_vocab.n_words,
             "freeze_embedding": False     # 是否冻结预训练词向量
             } 
         self.exp_setting={
-            "max_seq_len": 99, # 不要超过100，因为位置编码最大长度是100
-            "batch_size": 64,
-            "learning_rate": 5e-3,
+            "max_seq_len": 90, # 不要超过100，因为位置编码最大长度是100
+            "batch_size": 32,
+            "learning_rate": 1e-4,
             "patience": 2,
             "teacher_forcing_ratio":1.0,
             "start_from": "scratch",
@@ -68,7 +67,7 @@ class Transformer_frame(Exp_frame):
             d_ff=self.model_params['d_ff'],
             dropout=self.model_params['dropout'],
             norm_type=self.model_params['norm'],
-            embedding_type=self.model_params['positional']
+            relative_position=self.model_params['relative_position']
         ).to(self.device)
 
         decoder = TransformerDecoder(
@@ -79,7 +78,7 @@ class Transformer_frame(Exp_frame):
             d_ff=self.model_params['d_ff'],
             dropout=self.model_params['dropout'],
             norm_type=self.model_params['norm'],
-            embedding_type=self.model_params['positional']
+            relative_position=self.model_params['relative_position']
         ).to(self.device)
 
         self.model = Transformer(encoder, decoder, self.device).to(self.device)
@@ -108,7 +107,7 @@ class Transformer_frame(Exp_frame):
             d_ff=self.model_params['d_ff'],
             dropout=self.model_params['dropout'],
             norm_type=self.model_params['norm'],
-            embedding_type=self.model_params['positional']
+            relative_position=self.model_params['relative_position']
         ).to(self.device)
 
         decoder = TransformerDecoder(
@@ -119,7 +118,7 @@ class Transformer_frame(Exp_frame):
             d_ff=self.model_params['d_ff'],
             dropout=self.model_params['dropout'],
             norm_type=self.model_params['norm'],
-            embedding_type=self.model_params['positional']
+            relative_position=self.model_params['relative_position']
         ).to(self.device)
 
         self.model = Transformer(encoder, decoder, self.device).to(self.device)

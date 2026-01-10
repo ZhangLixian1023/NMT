@@ -1,7 +1,6 @@
 import pickle
 import torch
 import torch.nn as nn
-import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from data import TranslationDataset, collate_fn
@@ -29,17 +28,17 @@ class RNN_frame(Exp_frame):
         super().__init__()
         self.model_params = {
             "architecture":"rnn",
-            "hidden_size": 512,
+            "hidden_size": 256,
             "num_layers": 2,
             "dropout": 0.3,
-            "attention_type": "dot",  # 注意力机制类型：'bahdanau' 或 'luong'
+            "attention_type": 'additive',  # 注意力机制类型：'dot','multiplicative','additive'
             "src_vocab_size":self.src_vocab.n_words,
             "tgt_vocab_size":self.tgt_vocab.n_words,
             "freeze_embedding": False     # 是否冻结预训练词向量
             }
         self.exp_setting={
-            "max_seq_len": 100,
-            "batch_size": 64,
+            "max_seq_len": 90,
+            "batch_size": 32,
             "learning_rate": 1e-4,
             "patience": 2,
             "teacher_forcing_ratio":1.0,

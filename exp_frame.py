@@ -8,8 +8,12 @@ matplotlib.use('Agg')  # 使用非交互式 backend
 import pandas as pd
 import os
 from utils import Demo, load_pairs , calculate_bleu4
+from data import TranslationDataset, collate_fn
+from torch.utils.data import DataLoader
 from pprint import pprint
 import torch
+import torch.nn as nn
+import torch.optim as optim
 import pickle
 class Exp_frame(ABC):
     """抽象基类 实验框架"""
@@ -21,7 +25,7 @@ class Exp_frame(ABC):
             tgt_vocab_file = './saved_vocab_embedding/tgt_vocab.pkl'
             )
         self.dataset_paths = {
-            "train_dataset": "./dataset/train_100k_pairs.jsonl", # 训练集
+            "train_dataset": "./dataset/valid_pairs.jsonl", # 训练集
             "valid_dataset": "./dataset/valid_pairs.jsonl", # 验证集
             "test_dataset":"./dataset/test_pairs.jsonl", # 测试集
             }
@@ -137,17 +141,20 @@ class Exp_frame(ABC):
         train_loader = DataLoader(train_dataset, batch_size=self.exp_setting['batch_size'], collate_fn=collate_fn, shuffle=True)
         valid_loader = DataLoader(valid_dataset, batch_size=self.exp_setting['batch_size'], collate_fn=collate_fn)
         # 损失函数和优化器
-        criterion = nn.NLLLoss(ignore_index=0)  # 忽略填充标记
+        if self.model_params['architecture']=='Transformer':
+            criterion = nn.CrossEntropyLoss(ignore_index=0)  # 忽略填充标记
+        else:
+            criterion = nn.NLLLoss(ignore_index=0)  # 忽略填充标记
         optimizer = optim.Adam(self.model.parameters(), lr=self.exp_setting['learning_rate'])
 
         patience_counter = 0
         epoch = 0
-        while epoch <= n_epochs:
-            if epoch == n_epochs:
-                more = input("Last epoch. Enter 0 to quit. Enter n for more epochs.\n")
-                if int(more)==0:
-                    break
-                n_epochs += int(more)
+        while epoch < n_epochs:
+            #if epoch == n_epochs:
+                # more = input("Last epoch. Enter 0 to quit. Enter n for more epochs.\n")
+                # if int(more)==0:
+                #     break
+                # n_epochs += int(more)
 
             epoch+=1
             self.trained_epochs+=1

@@ -71,7 +71,7 @@ class Transformer(nn.Module):
         
         return output
     
-    def predict(self, src, src_lengths=None, max_length=99, strategy='greedy', beam_width=5):
+    def predict(self, src, src_lengths=None, max_length=90, strategy='greedy', beam_width=5):
         """
         模型预测函数（用于推理）
         :param src: 源语言序列，形状：(batch_size = 1,seq_len)
