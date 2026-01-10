@@ -3,59 +3,55 @@ import numpy
 class Demo:
     """Show translateion demo."""
     
-    def __init__(self, model, src_vocab, tgt_vocab, examples,device):
+    def __init__(self, model, src_vocab, tgt_vocab, examples,device,strategy='beam'):
         self.model = model
         self.src_vocab = src_vocab
         self.tgt_vocab = tgt_vocab
         self.examples = examples
         self.device = device
+        self.strategy=strategy
+        print("Demo initialized with strategy:",self.strategy)
     
     def translate_sentence(self, sentence: str) -> str:
         """Translate a single sentence."""
         self.model.eval()
-
-        # batch = 1
-
         # 预处理源语言句子
         src_tokens = sentence.split()
         src_indices = [self.src_vocab.word_to_idx(word) for word in src_tokens]
         src_tensor = torch.tensor(src_indices, dtype=torch.long).unsqueeze(0).to(self.device)  # ( 1 ,seq_len)
-        
-        # print("class Demo维度检查")
-        # print(f"src_tensor: {src_tensor.shape}")
-
         # 翻译
-        output_indices = self.model.predict(src_tensor)
-        
+        output_indices = self.model.predict(src_tensor,strategy=self.strategy)
         # 将索引转换为单词
         output_words = []
         for idx in output_indices:
             word = self.tgt_vocab.idx_to_word(idx)
             output_words.append(word)
             if word == '<eos>':
-                print("生成结束")
                 break
         return ' '.join(output_words)
 
-    def generate_translation_examples(self,noref=False) -> None:
+    def generate_translation_examples(self,noref=False,show=False) -> None:
         """Generate translations for a list of example sentences."""
-        print(f'\n===翻译示例 ===')
         output=[]
-
-        if noref:
-            for src in self.examples:
+        if show:
+            print(f'\n===翻译示例 ===') 
+        for (idx,item) in enumerate(self.examples):
+            if noref:
+                src= item
                 translation = self.translate_sentence(src)
-                print(f'\n源语言: {src}')
-                print(f'模型翻译: {translation}')
+                if show:
+                    print(f'\n{idx}. {src}')
+                    print(f'模型: {translation}')
                 output.append({'src':src,'translation':translation})
-            print('====================')
-            return output
-        
-        for (src,tgt) in self.examples:
-            translation = self.translate_sentence(src)
-            print(f'\n源语言: {src}')
-            print(f'目标语言: {tgt}')
-            print(f'模型翻译: {translation}')
-            output.append({'src':src,'tgt':tgt,'translation':translation})
-        print('====================')
+            else:
+                (src,tgt)= item
+                translation = self.translate_sentence(src)
+                if show:
+                    print(f'\n{idx}. {src}')
+                    print(f'参考: {tgt}')
+                    print(f'模型: {translation}')
+                output.append({'src':src,'tgt':tgt,'translation':translation})
+        if show:
+            print('='*20+'\n')
         return output
+    

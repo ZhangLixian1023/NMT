@@ -64,26 +64,3 @@ def collate_fn(batch):
         'tgt_output': tgt_out_padded,
         'src_lengths': src_lengths
     }
-
-    
-    # tgt_lengths = torch.tensor([item['tgt_length'] for item in batch])
-    # # 计算批次中的最大长度
-    # max_src_len = max(src_lengths)
-    # max_tgt_len = max(tgt_lengths)
-    
-    # # 填充源语言序列
-    # src_padded = torch.zeros(len(batch), max_src_len, dtype=torch.long)
-    # for i, item in enumerate(batch):
-    #     src_padded[i, :len(item['src'])] = item['src']
-    
-    # # 填充目标语言序列
-    # tgt_padded = torch.zeros(len(batch), max_tgt_len, dtype=torch.long)
-    # for i, item in enumerate(batch):
-    #     tgt_padded[i, :len(item['tgt'])] = item['tgt']
-    
-    # return {
-    #     'src': src_padded,
-    #     'tgt': tgt_padded,
-    #     'src_lengths': src_lengths,
-    #     'tgt_lengths': tgt_lengths
-    # }

@@ -71,50 +71,70 @@ class Transformer(nn.Module):
         
         return output
     
-    def predict(self, src, src_lengths=None, max_length=50):
+    def predict(self, src, src_lengths=None, max_length=99, strategy='greedy', beam_width=5):
         """
         模型预测函数（用于推理）
-        :param src: 源语言序列，形状：(batch_size = 1,seq_len, 1) 
+        :param src: 源语言序列，形状：(batch_size = 1,seq_len)
         :param max_length: 最大输出长度
-        :return: 预测的目标语言序列索引
+        :param strategy: 'greedy' 或 'beam'
+        :param beam_width: beam search 宽度（仅在 strategy=='beam' 时生效）
+        :param sos_idx: <sos> 索引
+        :param eos_idx: <eos> 索引
+        :return: 预测的目标语言序列索引（不包含<sos>，包含<eos>若预测到）
         """
-        
-        # 创建源语言掩码
+        sos_idx=2
+        eos_idx=3
+        src = src.to(self.device)
         src_mask = self.make_src_mask(src)
-        
-        # print("\n\nTransformer Predict 维度检查:")
-        # print(f"src_mask: {src_mask.shape}")
-        # print(f"src: {src.shape}")
-        # 编码器前向传播
-        enc_output = self.encoder(src, src_mask) # ( 1, seq_len, d_model )
-        
-        # 初始化目标序列：只包含<sos>标记
-        tgt = torch.tensor([2], device=self.device).unsqueeze(0)  # <sos>的索引是2，形状：(1,1)
-        
-        # # 维度检查
-        # print(f"tgt: {tgt.shape}")
-        
-        # print(f"enc_out: {enc_output.shape}")
-        outputs = []
-        for _ in range(max_length):
-            # tgt : (1, seq_len)
-            # 创建目标语言掩码
-            tgt_mask = self.make_tgt_mask(tgt) 
-            
-            # 解码器前向传播
-            output = self.decoder(tgt, enc_output, src_mask, tgt_mask) # (1, seq_len, vocab_size )
-            
-            # 获取最后一个时间步的输出
-            output = output[:, -1, :] # (1, seq_len, vocab_size ) --> (1, vocab_size )
-            
-            # 获取预测的词汇索引
-            top1 = output.argmax(-1).unsqueeze(0)  # (1 token)--> (1 batch, 1 token) 最大概率的词
-            outputs.append(output.argmax(-1).item())
-            # 将预测词添加到目标序列
-            tgt = torch.cat((tgt, top1), dim=1) # (1, seq_len + 1 )
-            
-            # 如果预测到<eos>标记，结束预测
-            if top1.item() == 3:  # <eos>的索引是3
-                break
-        
-        return outputs
+        enc_output = self.encoder(src, src_mask)  # (1, seq_len, d_model)
+
+        if strategy == 'greedy':
+            tgt = torch.tensor([[sos_idx]], device=self.device)  # (1,1)
+            outputs = []
+            with torch.no_grad():
+                for _ in range(max_length):
+                    tgt_mask = self.make_tgt_mask(tgt)
+                    out = self.decoder(tgt, enc_output, src_mask, tgt_mask)  # (1, seq_len, vocab)
+                    logits = out[:, -1, :]  # (1, vocab)
+                    top1 = logits.argmax(-1).item()
+                    outputs.append(top1)
+                    tgt = torch.cat((tgt, torch.tensor([[top1]], device=self.device)), dim=1)
+                    if top1 == eos_idx:
+                        break
+            return outputs
+
+        elif strategy == 'beam':
+            with torch.no_grad():
+                # beams: list of (tokens_tensor, score, finished)
+                beams = [(torch.tensor([[sos_idx]], device=self.device), 0.0, False)]
+                for _ in range(max_length):
+                    all_candidates = []
+                    for tokens, score, finished in beams:
+                        if finished:
+                            all_candidates.append((tokens, score, True))
+                            continue
+                        tgt_mask = self.make_tgt_mask(tokens)
+                        out = self.decoder(tokens, enc_output, src_mask, tgt_mask)  # (1, seq_len, vocab)
+                        log_probs = torch.log_softmax(out[:, -1, :], dim=-1).squeeze(0)  # (vocab,)
+                        topk_logp, topk_idx = torch.topk(log_probs, min(beam_width, log_probs.size(0)))
+                        for k in range(topk_idx.size(0)):
+                            idx = topk_idx[k].item()
+                            lp = topk_logp[k].item()
+                            new_tokens = torch.cat((tokens, torch.tensor([[idx]], device=self.device)), dim=1)
+                            new_score = score + lp
+                            new_finished = (idx == eos_idx)
+                            all_candidates.append((new_tokens, new_score, new_finished))
+                    # keep top beams
+                    all_candidates.sort(key=lambda x: x[1], reverse=True)
+                    beams = all_candidates[:beam_width]
+                    if all(b[2] for b in beams):
+                        break
+                finished_beams = [b for b in beams if b[2]]
+                best = finished_beams[0] if finished_beams else beams[0]
+                token_list = best[0].squeeze(0).tolist()
+                if token_list and token_list[0] == sos_idx:
+                    token_list = token_list[1:]
+                return token_list
+
+        else:
+            raise ValueError("Unknown strategy: choose 'greedy' or 'beam'")

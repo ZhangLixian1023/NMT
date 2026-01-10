@@ -122,9 +122,6 @@ class Encoder(nn.Module):
             relative_positions = self.positional_encoding.get_relative_positions(seq_len)
             relative_embeddings = self.positional_encoding.relative_embeddings(relative_positions)
         
-        # print("\n维度检查 Transformer Encoder forward:")
-        # print(f"src shape = {src.shape}")
-        # print(f"mask shape = {mask.shape}")
         # 经过所有编码器层
         for layer in self.layers:
             x = layer(x, mask, relative_positions, relative_embeddings)
