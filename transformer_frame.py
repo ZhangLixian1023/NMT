@@ -26,11 +26,11 @@ class Transformer_frame(Exp_frame):
     def __init__(self):
         super().__init__()
         self.model_params = {
-            "architecture":"Transformer",
-            "d_model": 256,  # 嵌入维度
+            "architecture":"transformer",
+            "d_model": 512,  # 嵌入维度
             "n_layers": 6,  # 层数
             "n_heads":8,    # attention头数
-            "d_ff":512,    # 前馈网络隐藏层维度
+            "d_ff":1024,    # 前馈网络隐藏层维度
             "dropout": 0.3,
             "relative_position": True,  # 位置嵌入类型 absolute 或 relative
             "norm" : "rmsnorm", # 归一化类型 layer 或 rms
@@ -40,7 +40,7 @@ class Transformer_frame(Exp_frame):
             } 
         self.exp_setting={
             "max_seq_len": 90, # 不要超过100，因为位置编码最大长度是100
-            "batch_size": 32,
+            "batch_size": 64,
             "learning_rate": 1e-4,
             "patience": 2,
             "teacher_forcing_ratio":1.0,

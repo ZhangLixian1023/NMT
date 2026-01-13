@@ -66,6 +66,10 @@ def calculate_bleu4(hypotheses, references):
     # 计算各个 n-gram 精确度
     smooth_val = 1.
     for n in range(4):
+        if t[n]==0:
+            t[n]=1e8
+            p[n]=1e-8
+            continue
         if c[n] == 0 :
             smooth_val = smooth_val / 2
             p[n] = 100 * smooth_val / t[n]
