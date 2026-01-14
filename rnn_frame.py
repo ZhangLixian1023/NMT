@@ -2,7 +2,7 @@ import pickle
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from data import TranslationDataset, collate_fn
 from models.rnn.encoder import Encoder as RNNEncoder
 from models.rnn.decoder import Decoder as RNNDecoder
@@ -28,18 +28,18 @@ class RNN_frame(Exp_frame):
         super().__init__()
         self.model_params = {
             "architecture":"rnn",
-            "hidden_size": 256,
+            "hidden_size": 512,
             "num_layers": 2,
-            "dropout": 0.3,
-            "attention_type": 'additive',  # 注意力机制类型：'dot','multiplicative','additive'
+            "dropout": 0.25,
+            "attention_type": 'multiplicative',  # 注意力机制类型：'dot','multiplicative','additive'
             "src_vocab_size":self.src_vocab.n_words,
             "tgt_vocab_size":self.tgt_vocab.n_words,
             "freeze_embedding": False     # 是否冻结预训练词向量
             }
         self.exp_setting={
             "max_seq_len": 90,
-            "batch_size": 32,
-            "learning_rate": 1e-4,
+            "batch_size": 256,
+            "learning_rate": 5e-4,
             "patience": 2,
             "teacher_forcing_ratio":1.0,
             "start_from": "scratch",

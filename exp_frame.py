@@ -26,7 +26,11 @@ class Exp_frame(ABC):
             tgt_vocab_file = './processed_data/vocab_en.json'
             )
         self.dataset_paths = {
+<<<<<<< HEAD
             "train_dataset": "./dataset/trin_pairs.jsonl", # 训练集
+=======
+            "train_dataset": "./dataset/train_100k_pairs.jsonl", # 训练集
+>>>>>>> d04839ac0cfcd811fa009cf6119f32b9c88b1b9a
             "valid_dataset": "./dataset/valid_pairs.jsonl", # 验证集
             "test_dataset":"./dataset/valid_pairs.jsonl", # 测试集
             }
@@ -104,10 +108,10 @@ class Exp_frame(ABC):
         if self.save==False:
             return
         # 保存翻译示例（每个 epoch 都记录）
-        examples_save_path = os.path.join(self.save_dir, self.save_prefix+f'_examples_epoch{self.trained_epochs}.csv')
-        examples_output = self.demo.generate_translation_examples()
-        dt = pd.DataFrame(examples_output)
-        dt.to_csv(examples_save_path,index=False)
+        # examples_save_path = os.path.join(self.save_dir, self.save_prefix+f'_examples_epoch{self.trained_epochs}.csv')
+        # examples_output = self.demo.generate_translation_examples()
+        # dt = pd.DataFrame(examples_output)
+        # dt.to_csv(examples_save_path,index=False)
 
         # 保存 loss 列表（pickle）
         loss_save_path = os.path.join(self.save_dir, self.save_prefix+'_losses.txt')
@@ -142,9 +146,11 @@ class Exp_frame(ABC):
         train_loader = DataLoader(train_dataset, batch_size=self.exp_setting['batch_size'], collate_fn=collate_fn, shuffle=True)
         valid_loader = DataLoader(valid_dataset, batch_size=self.exp_setting['batch_size'], collate_fn=collate_fn)
         # 损失函数和优化器
-        if self.model_params['architecture']=='Transformer':
+        if self.model_params['architecture']=='transformer':
+            print('Exp_frame: transformer, use CE loss')
             criterion = nn.CrossEntropyLoss(ignore_index=0)  # 忽略填充标记
         else:
+            print('Exp_frame: rnn, use NLL Loss')
             criterion = nn.NLLLoss(ignore_index=0)  # 忽略填充标记
         optimizer = optim.Adam(self.model.parameters(), lr=self.exp_setting['learning_rate'])
 
