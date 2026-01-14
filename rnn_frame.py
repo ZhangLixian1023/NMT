@@ -47,14 +47,12 @@ class RNN_frame(Exp_frame):
             }
 
     def init_model(self,
-    src_embedding_file='./saved_vocab_embedding/src_embedding.pkl' ,
-    tgt_embedding_file='./saved_vocab_embedding/tgt_embedding.pkl',save=True
+    src_embedding_file='./processed_data/zh_matrix.npy' ,
+    tgt_embedding_file='./processed_data/en_matrix.npy',save=True
     ):
         # 加载预训练词向量嵌入矩阵
-        with open(src_embedding_file, 'rb') as f:
-            src_embedding_matrix = pickle.load(f)
-        with open(tgt_embedding_file, 'rb') as f:
-            tgt_embedding_matrix = pickle.load(f)
+        src_embedding_matrix = torch.from_numpy(np.load(src_embedding_file))
+        tgt_embedding_matrix = torch.from_numpy(np.load(tgt_embedding_file))
 
         # 初始化RNN模型
         encoder = RNNEncoder(

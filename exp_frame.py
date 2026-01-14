@@ -8,26 +8,27 @@ matplotlib.use('Agg')  # 使用非交互式 backend
 import pandas as pd
 import os
 from utils import Demo, load_pairs , calculate_bleu4
-from data import TranslationDataset, collate_fn
+from data import TranslationDataset, collate_fn ,Vocabulary
 from torch.utils.data import DataLoader
 from pprint import pprint
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import pickle
+
 class Exp_frame(ABC):
     """抽象基类 实验框架"""
     def __init__(self):
         self.device= torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f'使用设备: {self.device}')
         self.load_vocab(
-            src_vocab_file = './saved_vocab_embedding/src_vocab.pkl' ,
-            tgt_vocab_file = './saved_vocab_embedding/tgt_vocab.pkl'
+            src_vocab_file = './processed_data/vocab_zh.json' ,
+            tgt_vocab_file = './processed_data/vocab_en.json'
             )
         self.dataset_paths = {
-            "train_dataset": "./dataset/valid_pairs.jsonl", # 训练集
+            "train_dataset": "./dataset/trin_pairs.jsonl", # 训练集
             "valid_dataset": "./dataset/valid_pairs.jsonl", # 验证集
-            "test_dataset":"./dataset/test_pairs.jsonl", # 测试集
+            "test_dataset":"./dataset/valid_pairs.jsonl", # 测试集
             }
         self.load_data()        
         self.trained_epochs=0
@@ -59,10 +60,10 @@ class Exp_frame(ABC):
     
     def load_vocab(self,src_vocab_file,tgt_vocab_file):
         # 加载词库 (词-->index)
-        with open(src_vocab_file, 'rb') as f:
-            self.src_vocab= pickle.load(f)
-        with open(tgt_vocab_file, 'rb') as f:
-            self.tgt_vocab= pickle.load(f)
+        with open(src_vocab_file, 'r', encoding='utf-8') as f:
+            self.src_vocab = Vocabulary(json.load(f))
+        with open(tgt_vocab_file, 'r', encoding='utf-8') as f:
+            self.tgt_vocab = Vocabulary(json.load(f))
         print("Done: Load vocabulary.")
 
     def _init_saver(self):
