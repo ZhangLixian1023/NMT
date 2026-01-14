@@ -6,23 +6,13 @@ e = RNN_frame()
 #e.load_model(save=False)
 #e.test([("我 爱 自然 语言 处理 。","i love natural language processing ."),
 #        ("今天 天气 很 好 。","the weather is nice today .")])
-<<<<<<< HEAD
-e.init_model(save=False)
-# loss = e.evaluate()
-# print(f'验证集 Loss: {loss:.3f}')
-e.train(n_epochs=5)
-import time
-strat=time.time()
-e.test(e.train_pairs[0:10],show=True,strategy='greedy')
-=======
 e.init_model(save=True)
 loss = e.evaluate()
 print(f'验证集 Loss: {loss:.3f}')
-e.train(n_epochs=10)
+#e.train(n_epochs=10)
 import time
 strat=time.time()
 e.test(e.train_pairs[0:10],show=False,strategy='beam')
->>>>>>> d04839ac0cfcd811fa009cf6119f32b9c88b1b9a
 end=time.time()
 mins, secs = divmod(end - strat, 60)
 #print(f'Test 用时: {mins}m {secs:.0f}s')

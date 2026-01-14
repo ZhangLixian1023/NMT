@@ -5,7 +5,6 @@ import time
 import json
 import matplotlib
 matplotlib.use('Agg')  # 使用非交互式 backend
-import pandas as pd
 import os
 from utils import Demo, load_pairs , calculate_bleu4
 from data import TranslationDataset, collate_fn ,Vocabulary
@@ -26,11 +25,7 @@ class Exp_frame(ABC):
             tgt_vocab_file = './processed_data/vocab_en.json'
             )
         self.dataset_paths = {
-<<<<<<< HEAD
-            "train_dataset": "./dataset/trin_pairs.jsonl", # 训练集
-=======
-            "train_dataset": "./dataset/train_100k_pairs.jsonl", # 训练集
->>>>>>> d04839ac0cfcd811fa009cf6119f32b9c88b1b9a
+            "train_dataset": "./dataset/train_pairs.jsonl", # 训练集
             "valid_dataset": "./dataset/valid_pairs.jsonl", # 验证集
             "test_dataset":"./dataset/valid_pairs.jsonl", # 测试集
             }

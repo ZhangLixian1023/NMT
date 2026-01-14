@@ -9,6 +9,7 @@ from models.transformer.decoder import Decoder as TransformerDecoder
 from models.transformer.transformer import Transformer
 from utils import Demo, calculate_bleu4
 from exp_frame import Exp_frame
+import numpy as np
 class Transformer_frame(Exp_frame):
     """
     交互训练、评估、测试框架
@@ -48,14 +49,7 @@ class Transformer_frame(Exp_frame):
             "others": ""
             }
 
-    def init_model(self,
-    src_embedding_file='./processed_data/zh_matrix.npy' ,
-    tgt_embedding_file='./processed_data/en_matrix.npy',save=True
-    ):
-        # 加载预训练词向量嵌入矩阵
-        src_embedding_matrix = torch.from_numpy(np.load(src_embedding_file))
-        tgt_embedding_matrix = torch.from_numpy(np.load(tgt_embedding_file))
-
+    def init_model(self,save=True):
         # 初始化Transformer模型
         encoder = TransformerEncoder(
             input_size=self.src_vocab.n_words,

@@ -1,4 +1,3 @@
-from .preprocessor import Preprocessor
 from .vocabulary import Vocabulary
 from .dataset import TranslationDataset, collate_fn
 

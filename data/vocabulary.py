@@ -6,10 +6,7 @@ class Vocabulary:
         """
         初始化词汇表
         :param max_size: 词汇表最大大小
-        """
-        self.language = language
-        self.max_size = max_size
-        
+        """        
         self.word2idx = {
             '<pad>': 0,
             '<unk>': 1,
@@ -18,7 +15,7 @@ class Vocabulary:
         }
         self.word2idx = word2idx_dict
         self.idx2word = {v: k for k, v in self.word2idx.items()}
-        self.n_words = len(idx2word)  # 初始词汇表大小
+        self.n_words = len(self.idx2word)  # 初始词汇表大小
     
     def word_to_idx(self, word):
         """

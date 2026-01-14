@@ -9,7 +9,7 @@ from models.rnn.decoder import Decoder as RNNDecoder
 from models.rnn.seq2seq import Seq2Seq as RNNSeq2Seq
 from utils import Demo, calculate_bleu4
 from exp_frame import Exp_frame
-
+import numpy as np
 class RNN_frame(Exp_frame):
     """
     交互训练、评估、测试框架
@@ -60,7 +60,7 @@ class RNN_frame(Exp_frame):
             hidden_size=self.model_params['hidden_size'],
             num_layers=self.model_params['num_layers'],
             dropout=self.model_params['dropout'],
-            pretrained_embedding=src_embedding_matrix,
+            pretrained_embedding=src_embedding_matrix.float(),
             freeze_embedding=self.model_params['freeze_embedding']
         ).to(self.device)
 
@@ -70,7 +70,7 @@ class RNN_frame(Exp_frame):
             num_layers=self.model_params['num_layers'],
             dropout=self.model_params['dropout'],
             attention_type=self.model_params['attention_type'],
-            pretrained_embedding=tgt_embedding_matrix,
+            pretrained_embedding=tgt_embedding_matrix.float(),
             freeze_embedding=self.model_params['freeze_embedding']
         ).to(self.device)
 
