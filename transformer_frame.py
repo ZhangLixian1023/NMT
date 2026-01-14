@@ -33,8 +33,8 @@ class Transformer_frame(Exp_frame):
             "n_heads":8,    # attention头数
             "d_ff":1024,    # 前馈网络隐藏层维度
             "dropout": 0.3,
-            "relative_position": False,  # 位置嵌入类型 absolute 或 relative
-            "norm" : "layernorm", # 归一化类型 layer 或 rms
+            "relative_position": True,  # 位置嵌入类型 absolute 或 relative
+            "norm" : "rmsnorm", # 归一化类型 layer 或 rms
             "src_vocab_size":self.src_vocab.n_words,
             "tgt_vocab_size":self.tgt_vocab.n_words,
             "freeze_embedding": False     # 是否冻结预训练词向量
