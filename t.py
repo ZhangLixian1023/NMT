@@ -9,7 +9,7 @@ e = RNN_frame()
 e.init_model(save=True)
 loss = e.evaluate()
 print(f'验证集 Loss: {loss:.3f}')
-#e.train(n_epochs=10)
+e.train(n_epochs=10)
 import time
 strat=time.time()
 e.test(e.train_pairs[0:10],show=False,strategy='beam')

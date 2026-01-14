@@ -70,7 +70,7 @@ class Exp_frame(ABC):
         formatted = datetime.now().strftime("%m%d%H%M%S")
         architecture = self.model_params['architecture']
         # 全部内容保存目录
-        self.save_dir=f"./saved_models/{architecture}{formatted}_from_{self.exp_setting['start_from']}"
+        self.save_dir=f"/mnt/afs/250010020/nmt_saved_models/{architecture}{formatted}_from_{self.exp_setting['start_from']}"
         self.save_prefix = f"{architecture}{formatted}"
         os.makedirs(self.save_dir, exist_ok=True)
 

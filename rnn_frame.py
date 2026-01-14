@@ -28,7 +28,7 @@ class RNN_frame(Exp_frame):
         super().__init__()
         self.model_params = {
             "architecture":"rnn",
-            "hidden_size": 512,
+            "hidden_size": 256,
             "num_layers": 2,
             "dropout": 0.25,
             "attention_type": 'multiplicative',  # 注意力机制类型：'dot','multiplicative','additive'
@@ -38,8 +38,8 @@ class RNN_frame(Exp_frame):
             }
         self.exp_setting={
             "max_seq_len": 90,
-            "batch_size": 256,
-            "learning_rate": 5e-4,
+            "batch_size": 128,
+            "learning_rate": 1e-4,
             "patience": 2,
             "teacher_forcing_ratio":1.0,
             "start_from": "scratch",
